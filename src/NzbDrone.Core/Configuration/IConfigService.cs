@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using NzbDrone.Common.Http.Proxy;
+using NzbDrone.Core.Authentication;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.EpisodeImport;
 using NzbDrone.Core.Qualities;
