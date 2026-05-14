@@ -499,6 +499,7 @@
     "DownloadClientSettingsAddPaused": "Přidat pozastavené",
     "DownloadClientSettingsUrlBaseHelpText": "Přidá prefix k {clientName}, například {url}",
     "ExistingTag": "Stávající značka",
+    "Extensions": "Rozšíření",
     "ProxyResolveIpHealthCheckMessage": "Nepodařilo se vyřešit adresu IP konfigurovaného hostitele proxy {proxyHostName}",
     "DownloadClientDelugeSettingsDirectory": "Adresář stahování",
     "DownloadClientPneumaticSettingsNzbFolder": "Složka Nzb",
