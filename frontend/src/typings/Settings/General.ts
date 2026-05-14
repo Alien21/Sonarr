@@ -29,6 +29,7 @@ export default interface General {
   updateAutomatically: boolean;
   updateMechanism: UpdateMechanism;
   updateScriptPath: string;
+  blockAutoImportForExistingEpisodeFiles: boolean;
   proxyEnabled: boolean;
   proxyType: string;
   proxyHostname: string;

@@ -681,6 +681,8 @@
   "Extensions": "Extensions",
   "ParseTvdbIdFromReleaseName": "Parse TVDB ID from Release Name",
   "ParseTvdbIdFromReleaseNameHelpText": "Use tvdb:12345 tags in release names and parent folders to match the series by TVDB ID before normal title or alias matching. Disabled by default.",
+  "PreserveDownloadsForExistingEpisodes": "Preserve Downloads for Existing Episodes",
+  "PreserveDownloadsForExistingEpisodesHelpText": "When a completed download matches one or more episodes that already have files, block automatic import and leave it in the queue for manual review.",
   "External": "External",
   "ExternalUpdater": "{appName} is configured to use an external update mechanism",
   "ExtraFileExtensionsHelpText": "Comma separated list of extra files to import (.nfo will be imported as .nfo-orig)",

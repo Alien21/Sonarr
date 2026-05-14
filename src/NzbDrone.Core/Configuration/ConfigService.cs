@@ -365,6 +365,8 @@ namespace NzbDrone.Core.Configuration
 
         public bool ParseTvdbIdFromReleaseName => GetValueBoolean("ParseTvdbIdFromReleaseName", false);
 
+        public bool BlockAutoImportForExistingEpisodeFiles => GetValueBoolean("BlockAutoImportForExistingEpisodeFiles", false);
+
         public bool ProxyEnabled => GetValueBoolean("ProxyEnabled", false);
 
         public ProxyType ProxyType => GetValueEnum<ProxyType>("ProxyType", ProxyType.Http);

@@ -79,6 +79,7 @@ namespace NzbDrone.Core.Configuration
 
         // Extensions
         bool ParseTvdbIdFromReleaseName { get; }
+        bool BlockAutoImportForExistingEpisodeFiles { get; }
 
         // Proxy
         bool ProxyEnabled { get; }

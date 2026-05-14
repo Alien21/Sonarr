@@ -11,7 +11,8 @@ function ExtensionsSettings(props) {
   const { settings, onInputChange } = props;
 
   const {
-    parseTvdbIdFromReleaseName
+    parseTvdbIdFromReleaseName,
+    blockAutoImportForExistingEpisodeFiles
   } = settings;
 
   return (
@@ -25,6 +26,18 @@ function ExtensionsSettings(props) {
           helpText={translate('ParseTvdbIdFromReleaseNameHelpText')}
           onChange={onInputChange}
           {...parseTvdbIdFromReleaseName}
+        />
+      </FormGroup>
+
+      <FormGroup size={sizes.MEDIUM}>
+        <FormLabel>{translate('PreserveDownloadsForExistingEpisodes')}</FormLabel>
+
+        <FormInputGroup
+          type={inputTypes.CHECK}
+          name="blockAutoImportForExistingEpisodeFiles"
+          helpText={translate('PreserveDownloadsForExistingEpisodesHelpText')}
+          onChange={onInputChange}
+          {...blockAutoImportForExistingEpisodeFiles}
         />
       </FormGroup>
     </FieldSet>

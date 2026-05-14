@@ -4,6 +4,7 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.History;
@@ -173,6 +174,27 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             Subject.Import(_trackedDownload);
 
             AssertNotImported();
+        }
+
+        [Test]
+        public void should_not_auto_import_if_episode_already_has_file_when_enabled()
+        {
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(v => v.BlockAutoImportForExistingEpisodeFiles)
+                  .Returns(true);
+
+            _trackedDownload.RemoteEpisode.Episodes = new List<Episode>
+                                                      {
+                                                          new Episode { Id = 1, EpisodeFileId = 1 }
+                                                      };
+
+            Subject.Import(_trackedDownload);
+
+            Mocker.GetMock<IDownloadedEpisodesImportService>()
+                  .Verify(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Series>(), It.IsAny<DownloadClientItem>()), Times.Never());
+
+            AssertNotImported();
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

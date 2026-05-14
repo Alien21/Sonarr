@@ -6,6 +6,7 @@ using NLog;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles;
@@ -36,6 +37,7 @@ namespace NzbDrone.Core.Download
         private readonly IEpisodeService _episodeService;
         private readonly IMediaFileService _mediaFileService;
         private readonly IRejectedImportService _rejectedImportService;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public CompletedDownloadService(IEventAggregator eventAggregator,
@@ -48,6 +50,7 @@ namespace NzbDrone.Core.Download
                                         IEpisodeService episodeService,
                                         IMediaFileService mediaFileService,
                                         IRejectedImportService rejectedImportService,
+                                        IConfigService configService,
                                         Logger logger)
         {
             _eventAggregator = eventAggregator;
@@ -60,6 +63,7 @@ namespace NzbDrone.Core.Download
             _episodeService = episodeService;
             _mediaFileService = mediaFileService;
             _rejectedImportService = rejectedImportService;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -122,6 +126,11 @@ namespace NzbDrone.Core.Download
                 }
             }
 
+            if (BlockAutoImportForExistingEpisodeFiles(trackedDownload))
+            {
+                return;
+            }
+
             trackedDownload.State = TrackedDownloadState.ImportPending;
         }
 
@@ -139,6 +148,11 @@ namespace NzbDrone.Core.Download
                 trackedDownload.Warn("Unable to parse download, automatic import is not possible.");
                 SetStateToImportBlocked(trackedDownload);
 
+                return;
+            }
+
+            if (BlockAutoImportForExistingEpisodeFiles(trackedDownload))
+            {
                 return;
             }
 
@@ -290,6 +304,22 @@ namespace NzbDrone.Core.Download
         private void SetImportItem(TrackedDownload trackedDownload)
         {
             trackedDownload.ImportItem = _provideImportItemService.ProvideImportItem(trackedDownload.DownloadItem, trackedDownload.ImportItem);
+        }
+
+        private bool BlockAutoImportForExistingEpisodeFiles(TrackedDownload trackedDownload)
+        {
+            if (!_configService.BlockAutoImportForExistingEpisodeFiles ||
+                trackedDownload.RemoteEpisode?.Episodes == null ||
+                trackedDownload.RemoteEpisode.Episodes.None(e => e.HasFile))
+            {
+                return false;
+            }
+
+            trackedDownload.Warn("Auto-import blocked: one or more matched episodes already have files in library.");
+            _logger.Warn("Auto-import blocked for '{0}': one or more matched episodes already have files in library.", trackedDownload.DownloadItem.Title);
+            SetStateToImportBlocked(trackedDownload);
+
+            return true;
         }
 
         private bool ValidatePath(TrackedDownload trackedDownload)

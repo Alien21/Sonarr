@@ -34,6 +34,7 @@ namespace Sonarr.Api.V3.Config
         public UpdateMechanism UpdateMechanism { get; set; }
         public string UpdateScriptPath { get; set; }
         public bool ParseTvdbIdFromReleaseName { get; set; }
+        public bool BlockAutoImportForExistingEpisodeFiles { get; set; }
         public bool ProxyEnabled { get; set; }
         public ProxyType ProxyType { get; set; }
         public string ProxyHostname { get; set; }
@@ -80,6 +81,7 @@ namespace Sonarr.Api.V3.Config
                 UpdateMechanism = model.UpdateMechanism,
                 UpdateScriptPath = model.UpdateScriptPath,
                 ParseTvdbIdFromReleaseName = configService.ParseTvdbIdFromReleaseName,
+                BlockAutoImportForExistingEpisodeFiles = configService.BlockAutoImportForExistingEpisodeFiles,
                 ProxyEnabled = configService.ProxyEnabled,
                 ProxyType = configService.ProxyType,
                 ProxyHostname = configService.ProxyHostname,
