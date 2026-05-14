@@ -7,6 +7,14 @@ import { fetchRootFolders } from 'Store/Actions/rootFolderActions';
 import parseUrl from 'Utilities/String/parseUrl';
 import AddNewSeries from './AddNewSeries';
 
+function normalizeLookupTerm(term) {
+  return term.replace(/_/g, ' ')
+    .replace(/\b(mr|mrs|ms|dr|prof|st|jr|sr)\.(?=\S)/gi, '$1. ')
+    .replace(/\.(?=\S)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function createMapStateToProps() {
   return createSelector(
     (state) => state.addSeries,
@@ -65,7 +73,7 @@ class AddNewSeriesConnector extends Component {
       this.props.clearAddSeries();
     } else {
       this._seriesLookupTimeout = setTimeout(() => {
-        this.props.lookupSeries({ term });
+        this.props.lookupSeries({ term: normalizeLookupTerm(term) });
       }, 300);
     }
   };
