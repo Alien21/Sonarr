@@ -344,7 +344,7 @@ namespace NzbDrone.Core.Notifications
 
             if (series != null)
             {
-                mess = GetMessage(series, message.Episode.Episodes, message.Episode.ParsedEpisodeInfo.Quality);
+                mess = GetMessage(series, message.Episode.Episodes, message.Episode?.ParsedEpisodeInfo?.Quality ?? new QualityModel(Quality.Unknown));
             }
 
             if (mess.IsNullOrWhiteSpace() && message.TrackedDownload.DownloadItem != null)
@@ -361,7 +361,7 @@ namespace NzbDrone.Core.Notifications
             {
                 Message = mess,
                 Series = series,
-                Quality = message.Episode?.ParsedEpisodeInfo.Quality,
+                Quality = message.Episode?.ParsedEpisodeInfo?.Quality ?? new QualityModel(Quality.Unknown),
                 Episode = message.Episode,
                 TrackedDownload = message.TrackedDownload,
                 DownloadClientInfo = message.TrackedDownload.DownloadItem?.DownloadClientInfo,

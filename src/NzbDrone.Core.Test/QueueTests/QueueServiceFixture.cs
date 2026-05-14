@@ -7,6 +7,7 @@ using NUnit.Framework;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Queue;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.Tv;
@@ -65,6 +66,20 @@ namespace NzbDrone.Core.Test.QueueTests
             var distinct = queue.Select(v => v.Id).Distinct().ToArray();
 
             distinct.Should().HaveCount(3);
+        }
+
+        [Test]
+        public void should_map_queue_item_with_series_but_no_parsed_episode_info()
+        {
+            _trackedDownloads.First().RemoteEpisode.ParsedEpisodeInfo = null;
+
+            Subject.Handle(new TrackedDownloadRefreshedEvent(_trackedDownloads));
+
+            var queue = Subject.GetQueue();
+
+            queue.Should().HaveCount(3);
+            queue.First().Series.Should().NotBeNull();
+            queue.Should().OnlyContain(q => q.Quality.Quality == Quality.Unknown);
         }
     }
 }
