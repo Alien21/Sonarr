@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net;
+using System.Text.RegularExpressions;
 using NLog;
 using NzbDrone.Common.Cloud;
 using NzbDrone.Common.Extensions;
@@ -108,7 +109,8 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
         {
             try
             {
-                var lowerTitle = title.ToLowerInvariant();
+                var searchTerm = Regex.Replace(title, @"\s+", " ").Trim();
+                var lowerTitle = searchTerm.ToLowerInvariant();
 
                 if (lowerTitle.StartsWith("tvdb:") || lowerTitle.StartsWith("tvdbid:"))
                 {
@@ -137,7 +139,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
 
                 var httpRequest = _requestBuilder.Create()
                                                  .SetSegment("route", "search")
-                                                 .AddQueryParam("term", title.ToLower().Trim())
+                                                 .AddQueryParam("term", searchTerm.ToLowerInvariant())
                                                  .Build();
 
                 var httpResponse = _httpClient.Get<List<ShowResource>>(httpRequest);
