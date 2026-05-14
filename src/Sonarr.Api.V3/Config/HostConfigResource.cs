@@ -33,6 +33,7 @@ namespace Sonarr.Api.V3.Config
         public bool UpdateAutomatically { get; set; }
         public UpdateMechanism UpdateMechanism { get; set; }
         public string UpdateScriptPath { get; set; }
+        public bool ParseTvdbIdFromReleaseName { get; set; }
         public bool ProxyEnabled { get; set; }
         public ProxyType ProxyType { get; set; }
         public string ProxyHostname { get; set; }
@@ -78,6 +79,7 @@ namespace Sonarr.Api.V3.Config
                 UpdateAutomatically = model.UpdateAutomatically,
                 UpdateMechanism = model.UpdateMechanism,
                 UpdateScriptPath = model.UpdateScriptPath,
+                ParseTvdbIdFromReleaseName = configService.ParseTvdbIdFromReleaseName,
                 ProxyEnabled = configService.ProxyEnabled,
                 ProxyType = configService.ProxyType,
                 ProxyHostname = configService.ProxyHostname,

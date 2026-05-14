@@ -5,6 +5,7 @@ using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DataAugmentation.Scene;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Languages;
@@ -101,6 +102,63 @@ namespace NzbDrone.Core.Test.ParserTests.ParsingServiceTests
 
             Mocker.GetMock<ISeriesService>()
                   .Verify(v => v.FindByTvdbId(It.IsAny<int>()), Times.Once());
+        }
+
+        [Test]
+        public void should_use_parsed_tvdbid_before_series_title_lookup()
+        {
+            const int tvdbId = 12345;
+            var titleSeries = Builder<Series>.CreateNew().With(s => s.Title = "Title Series").Build();
+            var tvdbSeries = Builder<Series>.CreateNew().With(s => s.TvdbId = tvdbId).Build();
+
+            _parsedEpisodeInfo.TvdbId = tvdbId;
+
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(v => v.ParseTvdbIdFromReleaseName)
+                  .Returns(true);
+
+            Mocker.GetMock<ISeriesService>()
+                  .Setup(s => s.FindByTitle(It.IsAny<string>()))
+                  .Returns(titleSeries);
+
+            Mocker.GetMock<ISeriesService>()
+                  .Setup(s => s.FindByTvdbId(tvdbId))
+                  .Returns(tvdbSeries);
+
+            var result = Subject.Map(_parsedEpisodeInfo, 0, 0, null);
+
+            result.Series.Should().Be(tvdbSeries);
+
+            Mocker.GetMock<ISeriesService>()
+                  .Verify(v => v.FindByTitle(It.IsAny<string>()), Times.Never());
+        }
+
+        [Test]
+        public void should_use_parsed_tvdbid_before_scene_mapping()
+        {
+            const int tvdbId = 12345;
+            var tvdbSeries = Builder<Series>.CreateNew().With(s => s.TvdbId = tvdbId).Build();
+
+            _parsedEpisodeInfo.TvdbId = tvdbId;
+
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(v => v.ParseTvdbIdFromReleaseName)
+                  .Returns(true);
+
+            Mocker.GetMock<ISceneMappingService>()
+                  .Setup(s => s.FindSceneMapping(_parsedEpisodeInfo.SeriesTitle, _parsedEpisodeInfo.ReleaseTitle, _parsedEpisodeInfo.SeasonNumber))
+                  .Returns(new SceneMapping { TvdbId = 54321 });
+
+            Mocker.GetMock<ISeriesService>()
+                  .Setup(s => s.FindByTvdbId(tvdbId))
+                  .Returns(tvdbSeries);
+
+            var result = Subject.Map(_parsedEpisodeInfo, 0, 0, null);
+
+            result.Series.Should().Be(tvdbSeries);
+
+            Mocker.GetMock<ISeriesService>()
+                  .Verify(v => v.FindByTvdbId(54321), Times.Never());
         }
 
         [Test]

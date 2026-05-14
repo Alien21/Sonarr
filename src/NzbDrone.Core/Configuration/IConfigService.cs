@@ -77,6 +77,9 @@ namespace NzbDrone.Core.Configuration
         string RijndaelSalt { get; }
         string HmacSalt { get; }
 
+        // Extensions
+        bool ParseTvdbIdFromReleaseName { get; }
+
         // Proxy
         bool ProxyEnabled { get; }
         ProxyType ProxyType { get; }

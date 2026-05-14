@@ -48,6 +48,37 @@ namespace NzbDrone.Core.Test.ParserTests
             ExceptionVerification.IgnoreWarns();
         }
 
+        [TestCase(@"C:\Test\Series Title [tvdb:12345]\S01\Series.Title.S01E01.mkv", 12345)]
+        [TestCase(@"C:\Test\Series Title [tvdb-12345]\Season 1\01 Pilot.mkv", 12345)]
+        public void should_parse_tvdb_id_from_path(string path, int tvdbId)
+        {
+            var result = Parser.Parser.ParsePath(path.AsOsAgnostic(), true);
+
+            result.TvdbId.Should().Be(tvdbId);
+
+            ExceptionVerification.IgnoreWarns();
+        }
+
+        [Test]
+        public void should_not_parse_tvdb_id_from_path_when_disabled()
+        {
+            var result = Parser.Parser.ParsePath(@"C:\Test\Series Title [tvdb:12345]\S01\Series.Title.S01E01.mkv".AsOsAgnostic());
+
+            result.TvdbId.Should().BeNull();
+
+            ExceptionVerification.IgnoreWarns();
+        }
+
+        [Test]
+        public void should_prefer_file_tvdb_id_over_path_tvdb_id()
+        {
+            var result = Parser.Parser.ParsePath(@"C:\Test\Series Title [tvdb:12345]\S01\Series.Title.S01E01.[tvdb:54321].mkv".AsOsAgnostic(), true);
+
+            result.TvdbId.Should().Be(54321);
+
+            ExceptionVerification.IgnoreWarns();
+        }
+
         [TestCase("01-03\\The Series Title (2010) - 1x01-02-03 - Episode Title HDTV-720p Proper", "The Series Title (2010)", 1, new[] { 1, 2, 3 })]
         [TestCase("Season 2\\E05-06 - Episode Title HDTV-720p Proper", "", 2, new[] { 5, 6 })]
         public void should_parse_multi_episode_from_path(string path, string title, int season, int[] episodes)

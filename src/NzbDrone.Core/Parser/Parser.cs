@@ -587,15 +587,70 @@ namespace NzbDrone.Core.Parser
         private static readonly Regex SimpleEpisodeNumberRegex = new Regex(@"^[ex]?(?<episode>(?<!\d+)\d{1,3}(?!\d+))(?:[ex-](?<episode>(?<!\d+)\d{1,3}(?!\d+)))?(?:[_. ](?!\d+)(?<remaining>.+)|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly Regex RequestInfoRegex = new Regex(@"^(?:\[.+?\])+", RegexOptions.Compiled);
+        private static readonly Regex TvdbIdRegex = new Regex(@"(?:\[\s*|\(\s*)tvdb\s*[-:]?\s*(?<id>\d+)\s*(?:\]|\))", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly string[] Numbers = new[] { "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine" };
 
         private static readonly Regex MultiRegex = new (@"[_. ](?<multi>multi)[_. ]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+        private static int? ExtractTvdbId(string title)
+        {
+            var releaseTitle = title;
+            return ExtractTvdbId(ref releaseTitle);
+        }
+
+        private static int? ExtractTvdbId(ref string releaseTitle)
+        {
+            var tvdbIdMatch = TvdbIdRegex.Match(releaseTitle);
+
+            if (!tvdbIdMatch.Success)
+            {
+                return null;
+            }
+
+            if (!int.TryParse(tvdbIdMatch.Groups["id"].Value, out var parsedTvdbId))
+            {
+                return null;
+            }
+
+            releaseTitle = TvdbIdRegex.Replace(releaseTitle, string.Empty);
+            Logger.Debug("TVDB ID detected: {0}", parsedTvdbId);
+
+            return parsedTvdbId;
+        }
+
+        private static void AddPathTvdbId(ParsedEpisodeInfo result, FileInfo fileInfo)
+        {
+            if (result == null || result.TvdbId.HasValue)
+            {
+                return;
+            }
+
+            var directory = fileInfo.Directory;
+
+            while (directory != null)
+            {
+                var tvdbId = ExtractTvdbId(directory.Name);
+
+                if (tvdbId.HasValue)
+                {
+                    result.TvdbId = tvdbId.Value;
+                    return;
+                }
+
+                directory = directory.Parent;
+            }
+        }
+
         public static ParsedEpisodeInfo ParsePath(string path)
         {
+            return ParsePath(path, false);
+        }
+
+        public static ParsedEpisodeInfo ParsePath(string path, bool parseTvdbId)
+        {
             var fileInfo = new FileInfo(path);
-            var result = ParseTitle(fileInfo.Name);
+            var result = ParseTitle(fileInfo.Name, parseTvdbId);
 
             // Parse using the folder and file separately, but combine if they both parse correctly.
             var episodeNumberMatch = SimpleEpisodeNumberRegex.Match(fileInfo.Name);
@@ -621,9 +676,14 @@ namespace NzbDrone.Core.Parser
                         pathTitle += $" {episodeNumberMatch.Groups["remaining"].Value}";
                     }
 
-                    var parsedFileInfo = ParseTitle(pathTitle);
+                    var parsedFileInfo = ParseTitle(pathTitle, parseTvdbId);
 
                     Logger.Debug("Episode parsed from file and folder names. {0}", parsedFileInfo);
+
+                    if (parseTvdbId)
+                    {
+                        AddPathTvdbId(parsedFileInfo, fileInfo);
+                    }
 
                     return parsedFileInfo;
                 }
@@ -632,7 +692,7 @@ namespace NzbDrone.Core.Parser
             if (result == null && int.TryParse(Path.GetFileNameWithoutExtension(fileInfo.Name), out var number))
             {
                 Logger.Debug("Attempting to parse episode info using directory and file names. {0}", fileInfo.Directory.Name);
-                result = ParseTitle(fileInfo.Directory.Name);
+                result = ParseTitle(fileInfo.Directory.Name, parseTvdbId);
 
                 if (result != null && result.AbsoluteEpisodeNumbers.Contains(number))
                 {
@@ -651,13 +711,18 @@ namespace NzbDrone.Core.Parser
             if (result == null)
             {
                 Logger.Debug("Attempting to parse episode info using combined directory and file names. {0}", fileInfo.Directory.Name);
-                result = ParseTitle(fileInfo.Directory.Name + " " + fileInfo.Name);
+                result = ParseTitle(fileInfo.Directory.Name + " " + fileInfo.Name, parseTvdbId);
             }
 
             if (result == null)
             {
                 Logger.Debug("Attempting to parse episode info using directory name. {0}", fileInfo.Directory.Name);
-                result = ParseTitle(fileInfo.Directory.Name + fileInfo.Extension);
+                result = ParseTitle(fileInfo.Directory.Name + fileInfo.Extension, parseTvdbId);
+            }
+
+            if (parseTvdbId)
+            {
+                AddPathTvdbId(result, fileInfo);
             }
 
             return result;
@@ -694,6 +759,11 @@ namespace NzbDrone.Core.Parser
 
         public static ParsedEpisodeInfo ParseTitle(string title)
         {
+            return ParseTitle(title, false);
+        }
+
+        public static ParsedEpisodeInfo ParseTitle(string title, bool parseTvdbId)
+        {
             try
             {
                 if (!ValidateBeforeParsing(title))
@@ -725,6 +795,8 @@ namespace NzbDrone.Core.Parser
                         Logger.Debug("Substituted with " + releaseTitle);
                     }
                 }
+
+                var tvdbId = parseTvdbId ? ExtractTvdbId(ref releaseTitle) : null;
 
                 var simpleTitle = SimpleTitleRegex.Replace(releaseTitle);
 
@@ -798,6 +870,11 @@ namespace NzbDrone.Core.Parser
                                 if (!result.ReleaseHash.IsNullOrWhiteSpace())
                                 {
                                     Logger.Debug("Release Hash parsed: {0}", result.ReleaseHash);
+                                }
+
+                                if (tvdbId.HasValue)
+                                {
+                                    result.TvdbId = tvdbId;
                                 }
 
                                 return result;

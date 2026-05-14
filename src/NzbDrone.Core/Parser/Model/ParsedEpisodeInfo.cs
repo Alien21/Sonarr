@@ -28,6 +28,7 @@ namespace NzbDrone.Core.Parser.Model
         public bool Special { get; set; }
         public string ReleaseGroup { get; set; }
         public string ReleaseHash { get; set; }
+        public int? TvdbId { get; set; }
         public int SeasonPart { get; set; }
         public string ReleaseTokens { get; set; }
         public int? DailyPart { get; set; }

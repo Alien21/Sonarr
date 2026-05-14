@@ -6,6 +6,7 @@ using NLog;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.MediaFiles.EpisodeImport;
 using NzbDrone.Core.Parser;
@@ -31,6 +32,7 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IImportApprovedEpisodes _importApprovedEpisodes;
         private readonly IDetectSample _detectSample;
         private readonly IRuntimeInfo _runtimeInfo;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public DownloadedEpisodesImportService(IDiskProvider diskProvider,
@@ -41,6 +43,7 @@ namespace NzbDrone.Core.MediaFiles
                                                IImportApprovedEpisodes importApprovedEpisodes,
                                                IDetectSample detectSample,
                                                IRuntimeInfo runtimeInfo,
+                                               IConfigService configService,
                                                Logger logger)
         {
             _diskProvider = diskProvider;
@@ -51,6 +54,7 @@ namespace NzbDrone.Core.MediaFiles
             _importApprovedEpisodes = importApprovedEpisodes;
             _detectSample = detectSample;
             _runtimeInfo = runtimeInfo;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -116,7 +120,7 @@ namespace NzbDrone.Core.MediaFiles
 
                 foreach (var videoFile in videoFiles)
                 {
-                    var episodeParseResult = Parser.Parser.ParseTitle(Path.GetFileName(videoFile));
+                    var episodeParseResult = Parser.Parser.ParseTitle(Path.GetFileName(videoFile), _configService.ParseTvdbIdFromReleaseName);
 
                     if (episodeParseResult == null)
                     {
@@ -181,7 +185,7 @@ namespace NzbDrone.Core.MediaFiles
                 };
             }
 
-            var folderInfo = Parser.Parser.ParseTitle(directoryInfo.Name);
+            var folderInfo = Parser.Parser.ParseTitle(directoryInfo.Name, _configService.ParseTvdbIdFromReleaseName);
             var videoFiles = _diskScanService.FilterPaths(directoryInfo.FullName, _diskScanService.GetVideoFiles(directoryInfo.FullName));
 
             if (downloadClientItem == null)

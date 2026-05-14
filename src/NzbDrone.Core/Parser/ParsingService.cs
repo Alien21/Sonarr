@@ -4,6 +4,7 @@ using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DataAugmentation.Scene;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser.Model;
@@ -27,29 +28,32 @@ namespace NzbDrone.Core.Parser
         private readonly IEpisodeService _episodeService;
         private readonly ISeriesService _seriesService;
         private readonly ISceneMappingService _sceneMappingService;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public ParsingService(IEpisodeService episodeService,
                               ISeriesService seriesService,
                               ISceneMappingService sceneMappingService,
+                              IConfigService configService,
                               Logger logger)
         {
             _episodeService = episodeService;
             _seriesService = seriesService;
             _sceneMappingService = sceneMappingService;
+            _configService = configService;
             _logger = logger;
         }
 
         public Series GetSeries(string title)
         {
-            var parsedEpisodeInfo = Parser.ParseTitle(title);
+            var parsedEpisodeInfo = Parser.ParseTitle(title, _configService.ParseTvdbIdFromReleaseName);
 
             if (parsedEpisodeInfo == null)
             {
                 return _seriesService.FindByTitle(title);
             }
 
-            var tvdbId = _sceneMappingService.FindTvdbId(parsedEpisodeInfo.SeriesTitle, parsedEpisodeInfo.ReleaseTitle, parsedEpisodeInfo.SeasonNumber);
+            var tvdbId = parsedEpisodeInfo.TvdbId ?? _sceneMappingService.FindTvdbId(parsedEpisodeInfo.SeriesTitle, parsedEpisodeInfo.ReleaseTitle, parsedEpisodeInfo.SeasonNumber);
 
             if (tvdbId.HasValue)
             {
@@ -368,6 +372,19 @@ namespace NzbDrone.Core.Parser
         private FindSeriesResult FindSeries(ParsedEpisodeInfo parsedEpisodeInfo, int tvdbId, int tvRageId, string imdbId, SceneMapping sceneMapping, SearchCriteriaBase searchCriteria)
         {
             Series series = null;
+
+            if (_configService.ParseTvdbIdFromReleaseName && parsedEpisodeInfo.TvdbId.HasValue)
+            {
+                series = _seriesService.FindByTvdbId(parsedEpisodeInfo.TvdbId.Value);
+
+                if (series == null)
+                {
+                    _logger.Debug("No matching series with TVDB ID {0}", parsedEpisodeInfo.TvdbId.Value);
+                    return null;
+                }
+
+                return new FindSeriesResult(series, SeriesMatchType.Id);
+            }
 
             if (sceneMapping != null)
             {

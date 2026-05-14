@@ -1,6 +1,7 @@
 ﻿using FluentAssertions;
 using Moq;
 using NUnit.Framework;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DataAugmentation.Scene;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Test.Framework;
@@ -57,6 +58,29 @@ namespace NzbDrone.Core.Test.ParserTests.ParsingServiceTests
 
             result.Should().NotBeNull();
             result.TvdbId.Should().Be(100);
+        }
+
+        [Test]
+        public void should_use_parsed_tvdb_id_before_scene_mapping_lookup()
+        {
+            const int tvdbId = 12345;
+            var series = new Series { TvdbId = tvdbId };
+
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(v => v.ParseTvdbIdFromReleaseName)
+                  .Returns(true);
+
+            Mocker.GetMock<ISeriesService>().Setup(v => v.FindByTvdbId(tvdbId)).Returns(series);
+
+            var result = Subject.GetSeries("Series.Title.S01E01.[tvdb:12345].mkv");
+
+            result.Should().Be(series);
+
+            Mocker.GetMock<ISceneMappingService>()
+                  .Verify(v => v.FindTvdbId(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()), Times.Never());
+
+            Mocker.GetMock<ISeriesService>()
+                  .Verify(v => v.FindByTitle(It.IsAny<string>()), Times.Never());
         }
     }
 }

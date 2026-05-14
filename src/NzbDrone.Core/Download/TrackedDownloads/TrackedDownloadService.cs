@@ -4,6 +4,7 @@ using System.Linq;
 using NLog;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.Download.Aggregation;
 using NzbDrone.Core.Download.History;
@@ -37,6 +38,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
         private readonly IDownloadHistoryService _downloadHistoryService;
         private readonly IRemoteEpisodeAggregationService _aggregationService;
         private readonly ICustomFormatCalculationService _formatCalculator;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
         private readonly ICached<TrackedDownload> _cache;
 
@@ -47,6 +49,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                                       IEventAggregator eventAggregator,
                                       IDownloadHistoryService downloadHistoryService,
                                       IRemoteEpisodeAggregationService aggregationService,
+                                      IConfigService configService,
                                       Logger logger)
         {
             _parsingService = parsingService;
@@ -55,6 +58,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
             _eventAggregator = eventAggregator;
             _downloadHistoryService = downloadHistoryService;
             _aggregationService = aggregationService;
+            _configService = configService;
             _cache = cacheManager.GetCache<TrackedDownload>(GetType());
             _logger = logger;
         }
@@ -115,7 +119,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                     .OrderByDescending(h => h.Date)
                     .ToList();
 
-                var parsedEpisodeInfo = Parser.Parser.ParseTitle(trackedDownload.DownloadItem.Title);
+                var parsedEpisodeInfo = Parser.Parser.ParseTitle(trackedDownload.DownloadItem.Title, _configService.ParseTvdbIdFromReleaseName);
 
                 if (parsedEpisodeInfo != null)
                 {
@@ -144,7 +148,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                     {
                         // Try parsing the original source title and if that fails, try parsing it as a special
                         // TODO: Pass the TVDB ID and TVRage IDs in as well so we have a better chance for finding the item
-                        parsedEpisodeInfo = Parser.Parser.ParseTitle(firstHistoryItem.SourceTitle) ??
+                        parsedEpisodeInfo = Parser.Parser.ParseTitle(firstHistoryItem.SourceTitle, _configService.ParseTvdbIdFromReleaseName) ??
                                             _parsingService.ParseSpecialEpisodeTitle(parsedEpisodeInfo, firstHistoryItem.SourceTitle, 0, 0, null);
 
                         if (parsedEpisodeInfo != null)
@@ -242,7 +246,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
 
         private void UpdateCachedItem(TrackedDownload trackedDownload)
         {
-            var parsedEpisodeInfo = Parser.Parser.ParseTitle(trackedDownload.DownloadItem.Title);
+            var parsedEpisodeInfo = Parser.Parser.ParseTitle(trackedDownload.DownloadItem.Title, _configService.ParseTvdbIdFromReleaseName);
 
             trackedDownload.RemoteEpisode = parsedEpisodeInfo == null ? null : _parsingService.Map(parsedEpisodeInfo, 0, 0, null);
 

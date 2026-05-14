@@ -500,6 +500,8 @@
     "DownloadClientSettingsUrlBaseHelpText": "Přidá prefix k {clientName}, například {url}",
     "ExistingTag": "Stávající značka",
     "Extensions": "Rozšíření",
+    "ParseTvdbIdFromReleaseName": "Načítat TVDB ID z názvu releasu",
+    "ParseTvdbIdFromReleaseNameHelpText": "Použije značky typu tvdb:12345 v názvech releasů a nadřazených složkách pro nalezení seriálu podle TVDB ID před běžným rozpoznáním podle názvu nebo aliasu. Ve výchozím stavu je vypnuto.",
     "ProxyResolveIpHealthCheckMessage": "Nepodařilo se vyřešit adresu IP konfigurovaného hostitele proxy {proxyHostName}",
     "DownloadClientDelugeSettingsDirectory": "Adresář stahování",
     "DownloadClientPneumaticSettingsNzbFolder": "Složka Nzb",

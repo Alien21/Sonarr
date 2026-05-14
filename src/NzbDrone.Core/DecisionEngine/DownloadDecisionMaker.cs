@@ -5,6 +5,7 @@ using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Common.Serializer;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.DataAugmentation.Scene;
 using NzbDrone.Core.DecisionEngine.Specifications;
@@ -28,6 +29,7 @@ namespace NzbDrone.Core.DecisionEngine
         private readonly ICustomFormatCalculationService _formatCalculator;
         private readonly IRemoteEpisodeAggregationService _aggregationService;
         private readonly ISceneMappingService _sceneMappingService;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public DownloadDecisionMaker(IEnumerable<IDownloadDecisionEngineSpecification> specifications,
@@ -35,6 +37,7 @@ namespace NzbDrone.Core.DecisionEngine
                                      ICustomFormatCalculationService formatService,
                                      IRemoteEpisodeAggregationService aggregationService,
                                      ISceneMappingService sceneMappingService,
+                                     IConfigService configService,
                                      Logger logger)
         {
             _specifications = specifications;
@@ -42,6 +45,7 @@ namespace NzbDrone.Core.DecisionEngine
             _formatCalculator = formatService;
             _aggregationService = aggregationService;
             _sceneMappingService = sceneMappingService;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -76,7 +80,7 @@ namespace NzbDrone.Core.DecisionEngine
 
                 try
                 {
-                    var parsedEpisodeInfo = Parser.Parser.ParseTitle(report.Title);
+                    var parsedEpisodeInfo = Parser.Parser.ParseTitle(report.Title, _configService.ParseTvdbIdFromReleaseName);
 
                     if (parsedEpisodeInfo == null || parsedEpisodeInfo.IsPossibleSpecialEpisode)
                     {

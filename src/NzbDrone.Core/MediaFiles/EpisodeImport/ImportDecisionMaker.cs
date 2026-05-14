@@ -4,6 +4,7 @@ using System.Linq;
 using NLog;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
@@ -31,6 +32,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
         private readonly IDetectSample _detectSample;
         private readonly ITrackedDownloadService _trackedDownloadService;
         private readonly ICustomFormatCalculationService _formatCalculator;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public ImportDecisionMaker(IEnumerable<IImportDecisionEngineSpecification> specifications,
@@ -40,6 +42,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
                                    IDetectSample detectSample,
                                    ITrackedDownloadService trackedDownloadService,
                                    ICustomFormatCalculationService formatCalculator,
+                                   IConfigService configService,
                                    Logger logger)
         {
             _specifications = specifications;
@@ -49,6 +52,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
             _detectSample = detectSample;
             _trackedDownloadService = trackedDownloadService;
             _formatCalculator = formatCalculator;
+            _configService = configService;
             _logger = logger;
         }
 
@@ -77,7 +81,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
 
             if (downloadClientItem != null)
             {
-                downloadClientItemInfo = Parser.Parser.ParseTitle(downloadClientItem.Title);
+                downloadClientItemInfo = Parser.Parser.ParseTitle(downloadClientItem.Title, _configService.ParseTvdbIdFromReleaseName);
             }
 
             // If not importing from a scene source (series folder for example), then assume all files are not samples
@@ -120,7 +124,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
 
             try
             {
-                var fileEpisodeInfo = Parser.Parser.ParsePath(localEpisode.Path);
+                var fileEpisodeInfo = Parser.Parser.ParsePath(localEpisode.Path, _configService.ParseTvdbIdFromReleaseName);
 
                 localEpisode.FileEpisodeInfo = fileEpisodeInfo;
                 localEpisode.Size = _diskProvider.GetFileSize(localEpisode.Path);
