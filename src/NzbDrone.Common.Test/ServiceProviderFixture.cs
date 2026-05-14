@@ -24,13 +24,16 @@ namespace NzbDrone.Common.Test
 
             Mocker.SetConstant<IProcessProvider>(Mocker.Resolve<ProcessProvider>());
 
-            CleanupService();
+            if (IsAnAdministrator())
+            {
+                CleanupService();
+            }
         }
 
         [TearDown]
         public void TearDown()
         {
-            if (OsInfo.IsWindows)
+            if (OsInfo.IsWindows && IsAnAdministrator())
             {
                 CleanupService();
             }
@@ -127,6 +130,11 @@ namespace NzbDrone.Common.Test
         [Test]
         public void Should_log_warn_if_on_stop_if_service_is_already_stopped()
         {
+            if (!IsAnAdministrator())
+            {
+                Assert.Inconclusive("Can't run test without Administrator rights");
+            }
+
             Subject.GetService(ALWAYS_INSTALLED_SERVICE).Status
                 .Should().NotBe(ServiceControllerStatus.Running);
 
