@@ -59,12 +59,15 @@ namespace NzbDrone.Core.Queue
 
         private Queue MapQueueItem(TrackedDownload trackedDownload, Episode episode)
         {
+            var languages = GetQueueLanguages(trackedDownload, episode);
+            var quality = GetQueueQuality(trackedDownload, episode);
+
             var queue = new Queue
             {
                 Series = trackedDownload.RemoteEpisode?.Series,
                 Episode = episode,
-                Languages = trackedDownload.RemoteEpisode?.Languages ?? new List<Language> { Language.Unknown },
-                Quality = trackedDownload.RemoteEpisode?.ParsedEpisodeInfo?.Quality ?? new QualityModel(Quality.Unknown),
+                Languages = languages,
+                Quality = quality,
                 Title = Parser.Parser.RemoveFileExtension(trackedDownload.DownloadItem.Title),
                 Size = trackedDownload.DownloadItem.TotalSize,
                 SizeLeft = trackedDownload.DownloadItem.RemainingSize,
@@ -92,6 +95,59 @@ namespace NzbDrone.Core.Queue
             }
 
             return queue;
+        }
+
+        private List<Language> GetQueueLanguages(TrackedDownload trackedDownload, Episode episode)
+        {
+            var languages = trackedDownload.RemoteEpisode?.Languages;
+            if (HasKnownLanguages(languages))
+            {
+                return languages;
+            }
+
+            if (episode != null &&
+                trackedDownload.AnalyzedEpisodeFiles?.TryGetValue(episode.Id, out var analyzedEpisode) == true &&
+                HasKnownLanguages(analyzedEpisode.Languages))
+            {
+                return analyzedEpisode.Languages;
+            }
+
+            if (HasKnownLanguages(trackedDownload.AnalyzedLanguages))
+            {
+                return trackedDownload.AnalyzedLanguages;
+            }
+
+            return new List<Language> { Language.Unknown };
+        }
+
+        private QualityModel GetQueueQuality(TrackedDownload trackedDownload, Episode episode)
+        {
+            var quality = trackedDownload.RemoteEpisode?.ParsedEpisodeInfo?.Quality;
+            if (quality != null && quality.Quality != Quality.Unknown)
+            {
+                return quality;
+            }
+
+            if (episode != null &&
+                trackedDownload.AnalyzedEpisodeFiles?.TryGetValue(episode.Id, out var analyzedEpisode) == true &&
+                analyzedEpisode.Quality != null &&
+                analyzedEpisode.Quality.Quality != Quality.Unknown)
+            {
+                return analyzedEpisode.Quality;
+            }
+
+            if (trackedDownload.AnalyzedQuality != null &&
+                trackedDownload.AnalyzedQuality.Quality != Quality.Unknown)
+            {
+                return trackedDownload.AnalyzedQuality;
+            }
+
+            return new QualityModel(Quality.Unknown);
+        }
+
+        private bool HasKnownLanguages(List<Language> languages)
+        {
+            return languages?.Any() == true && languages.Any(l => l != Language.Unknown);
         }
 
         public void Handle(TrackedDownloadRefreshedEvent message)

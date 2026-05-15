@@ -291,6 +291,7 @@ function InteractiveImportRow(props: InteractiveImportRowProps) {
         updateInteractiveImportItem({
           id,
           quality,
+          qualityManuallySelected: true,
         })
       );
 

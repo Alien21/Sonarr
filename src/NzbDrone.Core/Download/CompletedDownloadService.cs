@@ -4,19 +4,23 @@ using System.IO;
 using System.Linq;
 using FluentValidation;
 using NLog;
+using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.History;
+using NzbDrone.Core.Languages;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.EpisodeImport;
+using NzbDrone.Core.MediaFiles.EpisodeImport.Aggregation;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Profiles.Qualities;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Tags;
 using NzbDrone.Core.Tv;
 
@@ -35,6 +39,10 @@ namespace NzbDrone.Core.Download
         private readonly IHistoryService _historyService;
         private readonly IProvideImportItemService _provideImportItemService;
         private readonly IDownloadedEpisodesImportService _downloadedEpisodesImportService;
+        private readonly IDiskProvider _diskProvider;
+        private readonly IDiskScanService _diskScanService;
+        private readonly IMakeImportDecision _importDecisionMaker;
+        private readonly IAggregationService _aggregationService;
         private readonly IParsingService _parsingService;
         private readonly ISeriesService _seriesService;
         private readonly ITrackedDownloadAlreadyImported _trackedDownloadAlreadyImported;
@@ -54,6 +62,10 @@ namespace NzbDrone.Core.Download
                                         IHistoryService historyService,
                                         IProvideImportItemService provideImportItemService,
                                         IDownloadedEpisodesImportService downloadedEpisodesImportService,
+                                        IDiskProvider diskProvider,
+                                        IDiskScanService diskScanService,
+                                        IMakeImportDecision importDecisionMaker,
+                                        IAggregationService aggregationService,
                                         IParsingService parsingService,
                                         ISeriesService seriesService,
                                         ITrackedDownloadAlreadyImported trackedDownloadAlreadyImported,
@@ -73,6 +85,10 @@ namespace NzbDrone.Core.Download
             _historyService = historyService;
             _provideImportItemService = provideImportItemService;
             _downloadedEpisodesImportService = downloadedEpisodesImportService;
+            _diskProvider = diskProvider;
+            _diskScanService = diskScanService;
+            _importDecisionMaker = importDecisionMaker;
+            _aggregationService = aggregationService;
             _parsingService = parsingService;
             _seriesService = seriesService;
             _trackedDownloadAlreadyImported = trackedDownloadAlreadyImported;
@@ -123,6 +139,7 @@ namespace NzbDrone.Core.Download
             if (series != null)
             {
                 AttachExistingSeries(trackedDownload, series);
+                AnalyzeCompletedDownloadFile(trackedDownload);
             }
 
             if (series == null && historyItem != null)
@@ -137,6 +154,8 @@ namespace NzbDrone.Core.Download
                     // Show a warning if the release was matched by ID and the source is not interactive search
                     if (seriesMatchType == SeriesMatchType.Id && releaseSource != ReleaseSourceType.InteractiveSearch)
                     {
+                        AnalyzeCompletedDownloadFile(trackedDownload);
+
                         trackedDownload.Warn("Found matching series via grab history, but release was matched to series by ID. Automatic import is not possible. See the FAQ for details.");
                         SetStateToImportBlocked(trackedDownload);
 
@@ -144,6 +163,7 @@ namespace NzbDrone.Core.Download
                     }
 
                     AttachExistingSeries(trackedDownload, series);
+                    AnalyzeCompletedDownloadFile(trackedDownload);
                 }
             }
 
@@ -159,6 +179,8 @@ namespace NzbDrone.Core.Download
 
             if (trackedDownload.RemoteEpisode == null)
             {
+                AnalyzeCompletedDownloadFile(trackedDownload);
+
                 trackedDownload.Warn("Auto-import blocked: unable to resolve {0} download to a series.", trackedDownload.ImportItem?.Title);
                 _logger.Debug("Auto-import blocked: unable to resolve {0} download to a series.", trackedDownload.ImportItem?.Title);
                 SetStateToImportBlocked(trackedDownload);
@@ -170,6 +192,8 @@ namespace NzbDrone.Core.Download
             {
                 if (string.IsNullOrWhiteSpace(_configService.DefaultRootFolderForAutoImport))
                 {
+                    AnalyzeCompletedDownloadFile(trackedDownload);
+
                     trackedDownload.Warn("Series title mismatch; automatic import is not possible. Check the download troubleshooting entry on the wiki for common causes.");
                     SetStateToImportBlocked(trackedDownload);
 
@@ -180,6 +204,7 @@ namespace NzbDrone.Core.Download
 
                 if (series == null)
                 {
+                    AnalyzeCompletedDownloadFile(trackedDownload);
                     return;
                 }
             }
@@ -190,6 +215,8 @@ namespace NzbDrone.Core.Download
             }
 
             _logger.Debug("Set State='{0}' for series '{1}' tvdbid: {2}", TrackedDownloadState.ImportPending, series.Title, series.TvdbId);
+
+            AnalyzeCompletedDownloadFile(trackedDownload);
 
             trackedDownload.State = TrackedDownloadState.ImportPending;
         }
@@ -202,6 +229,8 @@ namespace NzbDrone.Core.Download
             {
                 return;
             }
+
+            AnalyzeCompletedDownloadFile(trackedDownload);
 
             if (trackedDownload.RemoteEpisode == null)
             {
@@ -580,6 +609,223 @@ namespace NzbDrone.Core.Download
             trackedDownload.State = TrackedDownloadState.ImportPending;
         }
 
+        private void AnalyzeCompletedDownloadFile(TrackedDownload trackedDownload)
+        {
+            if (!_configService.AnalyzeCompletedDownloadFiles ||
+                trackedDownload.DownloadItem.Status != DownloadItemStatus.Completed ||
+                trackedDownload.ImportItem == null)
+            {
+                return;
+            }
+
+            var outputPath = trackedDownload.ImportItem.OutputPath.FullPath;
+            var seriesId = trackedDownload.RemoteEpisode?.Series?.Id;
+
+            if (outputPath.IsNullOrWhiteSpace() ||
+                (trackedDownload.AnalyzedMediaInfoPath?.Equals(outputPath) == true &&
+                 trackedDownload.AnalyzedMediaInfoSeriesId == seriesId))
+            {
+                return;
+            }
+
+            trackedDownload.AnalyzedMediaInfoPath = outputPath;
+            trackedDownload.AnalyzedMediaInfoSeriesId = seriesId;
+
+            try
+            {
+                var localEpisodes = GetCompletedDownloadQueueEpisodes(trackedDownload, outputPath);
+
+                if (localEpisodes.Empty())
+                {
+                    _logger.Debug("Completed download file analysis did not find a media file for queue item '{0}'", trackedDownload.DownloadItem.Title);
+                    return;
+                }
+
+                ApplyCompletedDownloadFileAnalysis(trackedDownload, localEpisodes);
+
+                var queueEpisode = localEpisodes.FirstOrDefault(HasQueueMetadata);
+                var mediaInfo = queueEpisode?.MediaInfo;
+
+                _logger.Debug("Completed download file analysis updated queue item '{0}' from file '{1}'. Quality: '{2}', queue languages: '{3}', media title: '{4}', embedded audio: '{5}', embedded subtitles: '{6}', matched episodes: '{7}'",
+                    trackedDownload.DownloadItem.Title,
+                    queueEpisode?.Path ?? "none",
+                    queueEpisode?.Quality?.ToString() ?? "none",
+                    FormatValues(queueEpisode?.Languages),
+                    mediaInfo?.Title ?? "none",
+                    FormatValues(mediaInfo?.AudioLanguages),
+                    FormatValues(mediaInfo?.Subtitles),
+                    FormatEpisodes(queueEpisode?.Episodes));
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Unable to analyze completed download file for queue item '{0}'", trackedDownload.DownloadItem.Title);
+            }
+        }
+
+        private void ApplyCompletedDownloadFileAnalysis(TrackedDownload trackedDownload, List<LocalEpisode> localEpisodes)
+        {
+            var queueEpisode = localEpisodes.FirstOrDefault(HasQueueMetadata);
+
+            if (queueEpisode == null)
+            {
+                return;
+            }
+
+            if (queueEpisode.Quality != null &&
+                queueEpisode.Quality.Quality != Quality.Unknown)
+            {
+                trackedDownload.AnalyzedQuality = queueEpisode.Quality;
+            }
+
+            if (HasKnownLanguages(queueEpisode.Languages))
+            {
+                trackedDownload.AnalyzedLanguages = queueEpisode.Languages;
+            }
+
+            var analyzedEpisodeFiles = localEpisodes
+                .Where(HasQueueMetadata)
+                .Where(localEpisode => localEpisode.Episodes?.Any() == true)
+                .SelectMany(localEpisode => localEpisode.Episodes.Select(episode => new
+                {
+                    episode.Id,
+                    File = new AnalyzedDownloadFile
+                    {
+                        Path = localEpisode.Path,
+                        Quality = localEpisode.Quality,
+                        Languages = localEpisode.Languages
+                    }
+                }))
+                .GroupBy(item => item.Id)
+                .ToDictionary(item => item.Key, item => item.First().File);
+
+            if (analyzedEpisodeFiles.Empty())
+            {
+                return;
+            }
+
+            trackedDownload.AnalyzedEpisodeFiles ??= new Dictionary<int, AnalyzedDownloadFile>();
+
+            foreach (var analyzedEpisodeFile in analyzedEpisodeFiles)
+            {
+                trackedDownload.AnalyzedEpisodeFiles[analyzedEpisodeFile.Key] = analyzedEpisodeFile.Value;
+            }
+        }
+
+        private List<LocalEpisode> GetCompletedDownloadQueueEpisodes(TrackedDownload trackedDownload, string outputPath)
+        {
+            var series = trackedDownload.RemoteEpisode?.Series;
+            ParsedEpisodeInfo folderInfo = null;
+            List<string> videoFiles;
+
+            if (_diskProvider.FolderExists(outputPath))
+            {
+                var directoryInfo = new DirectoryInfo(outputPath);
+                folderInfo = Parser.Parser.ParseTitle(GetCleanedUpFolderName(directoryInfo.Name), _configService.ParseTvdbIdFromReleaseName);
+                videoFiles = _diskScanService.FilterPaths(directoryInfo.FullName, _diskScanService.GetVideoFiles(directoryInfo.FullName))
+                                            .OrderBy(path => path)
+                                            .ToList();
+            }
+            else if (_diskProvider.FileExists(outputPath) &&
+                     MediaFileExtensions.Extensions.Contains(Path.GetExtension(outputPath)))
+            {
+                videoFiles = new List<string> { outputPath };
+            }
+            else
+            {
+                return new List<LocalEpisode>();
+            }
+
+            if (series != null)
+            {
+                return _importDecisionMaker.GetImportDecisions(videoFiles, series, trackedDownload.ImportItem, folderInfo, true, false)
+                                           .Select(decision => decision.LocalEpisode)
+                                           .Where(HasQueueMetadata)
+                                           .OrderBy(localEpisode => localEpisode.Path)
+                                           .ToList();
+            }
+
+            var otherVideoFiles = videoFiles.Count > 1;
+
+            return videoFiles
+                .Select(videoFile => GetCompletedDownloadQueueEpisode(trackedDownload, videoFile, folderInfo, otherVideoFiles))
+                .Where(HasQueueMetadata)
+                .Take(1)
+                .OrderBy(localEpisode => localEpisode.Path)
+                .ToList();
+        }
+
+        private LocalEpisode GetCompletedDownloadQueueEpisode(TrackedDownload trackedDownload, string videoFile, ParsedEpisodeInfo folderInfo, bool otherVideoFiles)
+        {
+            var fileInfo = Parser.Parser.ParsePath(videoFile, _configService.ParseTvdbIdFromReleaseName);
+            var downloadClientEpisodeInfo = trackedDownload.RemoteEpisode?.ParsedEpisodeInfo ??
+                                            Parser.Parser.ParseTitle(trackedDownload.DownloadItem.Title, _configService.ParseTvdbIdFromReleaseName);
+
+            var localEpisode = new LocalEpisode
+            {
+                Path = videoFile,
+                Series = trackedDownload.RemoteEpisode?.Series,
+                DownloadItem = trackedDownload.ImportItem,
+                DownloadClientEpisodeInfo = downloadClientEpisodeInfo,
+                FolderEpisodeInfo = folderInfo,
+                FileEpisodeInfo = fileInfo ?? GetFallbackFileEpisodeInfo(videoFile),
+                ExistingFile = trackedDownload.RemoteEpisode?.Series?.Path.IsParentPath(videoFile) ?? false,
+                SceneSource = true,
+                OtherVideoFiles = otherVideoFiles
+            };
+
+            return _aggregationService.Augment(localEpisode, trackedDownload.ImportItem);
+        }
+
+        private ParsedEpisodeInfo GetFallbackFileEpisodeInfo(string path)
+        {
+            return new ParsedEpisodeInfo
+            {
+                ReleaseTitle = Path.GetFileNameWithoutExtension(path),
+                SeriesTitle = Path.GetFileNameWithoutExtension(path),
+                Quality = QualityParser.ParseQuality(path),
+                Languages = LanguageParser.ParseLanguages(path)
+            };
+        }
+
+        private bool HasQueueMetadata(LocalEpisode localEpisode)
+        {
+            return localEpisode != null &&
+                   (localEpisode.MediaInfo != null ||
+                    (localEpisode.Quality != null && localEpisode.Quality.Quality != Quality.Unknown) ||
+                    HasKnownLanguages(localEpisode.Languages));
+        }
+
+        private bool HasKnownLanguages(List<Language> languages)
+        {
+            return languages?.Any() == true && languages.Any(l => l != Language.Unknown);
+        }
+
+        private string FormatValues<T>(IEnumerable<T> values)
+        {
+            var formattedValues = values?.Select(value => value?.ToString())
+                                         .Where(value => value.IsNotNullOrWhiteSpace())
+                                         .Distinct()
+                                         .ToList();
+
+            return formattedValues?.Any() == true ? string.Join(", ", formattedValues) : "none";
+        }
+
+        private string FormatEpisodes(List<Episode> episodes)
+        {
+            if (episodes?.Any() != true)
+            {
+                return "none";
+            }
+
+            return string.Join(", ", episodes.Select(episode => $"{episode.SeasonNumber}x{episode.EpisodeNumber:00}"));
+        }
+
+        private string GetCleanedUpFolderName(string folder)
+        {
+            return folder.Replace("_UNPACK_", "")
+                         .Replace("_FAILED_", "");
+        }
+
         private void EnsureRemoteEpisode(TrackedDownload trackedDownload, Series series)
         {
             var release = trackedDownload.RemoteEpisode?.Release;
@@ -614,6 +860,8 @@ namespace NzbDrone.Core.Download
             {
                 return false;
             }
+
+            AnalyzeCompletedDownloadFile(trackedDownload);
 
             trackedDownload.Warn("Auto-import blocked: one or more matched episodes already have files in library.");
             _logger.Warn("Auto-import blocked for '{0}': one or more matched episodes already have files in library.", trackedDownload.DownloadItem.Title);

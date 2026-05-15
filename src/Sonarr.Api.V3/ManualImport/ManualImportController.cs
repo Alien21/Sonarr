@@ -53,14 +53,18 @@ namespace Sonarr.Api.V3.ManualImport
                 item.CustomFormats = processedItem.CustomFormats.ToResource(false);
                 item.CustomFormatScore = processedItem.CustomFormatScore;
 
-                // Only set the language/quality if they're unknown and languages were returned.
+                // Only set languages if they're unknown and languages were returned.
                 // Languages won't be returned when reprocessing if the season/episode isn't filled in yet and we don't want to return no languages to the client.
                 if (item.Languages.Count <= 1 && (item.Languages.SingleOrDefault() ?? Language.Unknown) == Language.Unknown && processedItem.Languages.Any())
                 {
                     item.Languages = processedItem.Languages;
                 }
 
-                if (item.Quality?.Quality == Quality.Unknown)
+                if (item.QualityManuallySelected == false && processedItem.Quality?.Quality != Quality.Unknown)
+                {
+                    item.Quality = processedItem.Quality;
+                }
+                else if (item.Quality?.Quality == Quality.Unknown)
                 {
                     item.Quality = processedItem.Quality;
                 }

@@ -688,6 +688,8 @@
   "ParseTvdbIdFromReleaseNameHelpText": "Use tvdb:12345 tags in release names and parent folders to match the series by TVDB ID before normal title or alias matching. Disabled by default.",
   "PreserveDownloadsForExistingEpisodes": "Preserve Downloads for Existing Episodes",
   "PreserveDownloadsForExistingEpisodesHelpText": "When a completed download matches one or more episodes that already have files, block automatic import and leave it in the queue for manual review.",
+  "AnalyzeCompletedDownloadFiles": "Analyze Completed Download Files",
+  "AnalyzeCompletedDownloadFilesHelpText": "Analyze completed download files before import to refine queue quality and languages from the actual media file. Only completed downloads are analyzed, and each tracked download path is analyzed once.",
   "UseSeriesInfoLanguage": "Use Series Info Language",
   "UseSeriesInfoLanguageHelpText": "Use the configured Series Info Language for localized series titles and overviews from TheTVDB. Requires a TheTVDB API key.",
   "TheTvdbApiKey": "TheTVDB API Key",

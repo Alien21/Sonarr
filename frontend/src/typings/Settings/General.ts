@@ -31,6 +31,7 @@ export default interface General {
   updateScriptPath: string;
   parseTvdbIdFromReleaseName: boolean;
   blockAutoImportForExistingEpisodeFiles: boolean;
+  analyzeCompletedDownloadFiles: boolean;
   useSeriesInfoLanguage: boolean;
   theTvdbApiKey: string;
   proxyEnabled: boolean;

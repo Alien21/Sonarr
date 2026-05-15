@@ -83,6 +83,7 @@ namespace NzbDrone.Core.Configuration
         // Extensions
         bool ParseTvdbIdFromReleaseName { get; }
         bool BlockAutoImportForExistingEpisodeFiles { get; }
+        bool AnalyzeCompletedDownloadFiles { get; }
         bool UseSeriesInfoLanguage { get; }
         string TheTvdbApiKey { get; }
 

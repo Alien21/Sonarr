@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using NzbDrone.Core.Indexers;
+using NzbDrone.Core.Languages;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.Download.TrackedDownloads
 {
@@ -18,6 +21,11 @@ namespace NzbDrone.Core.Download.TrackedDownloads
         public DateTime? Added { get; set; }
         public bool IsTrackable { get; set; }
         public bool HasNotifiedManualInteractionRequired { get; set; }
+        public string AnalyzedMediaInfoPath { get; set; }
+        public int? AnalyzedMediaInfoSeriesId { get; set; }
+        public QualityModel AnalyzedQuality { get; set; }
+        public List<Language> AnalyzedLanguages { get; set; }
+        public Dictionary<int, AnalyzedDownloadFile> AnalyzedEpisodeFiles { get; set; }
 
         public TrackedDownload()
         {
@@ -50,6 +58,13 @@ namespace NzbDrone.Core.Download.TrackedDownloads
             // Set CanBeRemoved to allow the failed item to be removed from the client
             DownloadItem.CanBeRemoved = true;
         }
+    }
+
+    public class AnalyzedDownloadFile
+    {
+        public string Path { get; set; }
+        public QualityModel Quality { get; set; }
+        public List<Language> Languages { get; set; }
     }
 
     public enum TrackedDownloadState

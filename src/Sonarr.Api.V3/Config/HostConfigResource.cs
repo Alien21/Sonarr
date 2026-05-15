@@ -35,6 +35,7 @@ namespace Sonarr.Api.V3.Config
         public string UpdateScriptPath { get; set; }
         public bool ParseTvdbIdFromReleaseName { get; set; }
         public bool BlockAutoImportForExistingEpisodeFiles { get; set; }
+        public bool AnalyzeCompletedDownloadFiles { get; set; }
         public bool UseSeriesInfoLanguage { get; set; }
         public string TheTvdbApiKey { get; set; }
         public bool ProxyEnabled { get; set; }
@@ -84,6 +85,7 @@ namespace Sonarr.Api.V3.Config
                 UpdateScriptPath = model.UpdateScriptPath,
                 ParseTvdbIdFromReleaseName = configService.ParseTvdbIdFromReleaseName,
                 BlockAutoImportForExistingEpisodeFiles = configService.BlockAutoImportForExistingEpisodeFiles,
+                AnalyzeCompletedDownloadFiles = configService.AnalyzeCompletedDownloadFiles,
                 UseSeriesInfoLanguage = configService.UseSeriesInfoLanguage,
                 TheTvdbApiKey = configService.TheTvdbApiKey,
                 ProxyEnabled = configService.ProxyEnabled,

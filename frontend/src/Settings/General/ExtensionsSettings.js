@@ -13,6 +13,7 @@ function ExtensionsSettings(props) {
   const {
     parseTvdbIdFromReleaseName,
     blockAutoImportForExistingEpisodeFiles,
+    analyzeCompletedDownloadFiles,
     useSeriesInfoLanguage,
     theTvdbApiKey
   } = settings;
@@ -40,6 +41,18 @@ function ExtensionsSettings(props) {
           helpText={translate('PreserveDownloadsForExistingEpisodesHelpText')}
           onChange={onInputChange}
           {...blockAutoImportForExistingEpisodeFiles}
+        />
+      </FormGroup>
+
+      <FormGroup size={sizes.MEDIUM}>
+        <FormLabel>{translate('AnalyzeCompletedDownloadFiles')}</FormLabel>
+
+        <FormInputGroup
+          type={inputTypes.CHECK}
+          name="analyzeCompletedDownloadFiles"
+          helpText={translate('AnalyzeCompletedDownloadFilesHelpText')}
+          onChange={onInputChange}
+          {...analyzeCompletedDownloadFiles}
         />
       </FormGroup>
 

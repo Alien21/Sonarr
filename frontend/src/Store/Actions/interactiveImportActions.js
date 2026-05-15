@@ -167,6 +167,7 @@ export const actionHandlers = handleThunks({
         seasonNumber: item.seasonNumber,
         episodeIds: (item.episodes || []).map((e) => e.id),
         quality: item.quality,
+        qualityManuallySelected: item.qualityManuallySelected === true,
         languages: item.languages,
         releaseGroup: item.releaseGroup,
         indexerFlags: item.indexerFlags,

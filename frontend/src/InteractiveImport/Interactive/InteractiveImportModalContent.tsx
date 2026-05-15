@@ -776,6 +776,7 @@ function InteractiveImportModalContent(
         updateInteractiveImportItems({
           ids: selectedIds,
           quality,
+          qualityManuallySelected: true,
         })
       );
 

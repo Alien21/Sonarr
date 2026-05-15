@@ -388,6 +388,8 @@ namespace NzbDrone.Core.Configuration
 
         public bool BlockAutoImportForExistingEpisodeFiles => GetValueBoolean("BlockAutoImportForExistingEpisodeFiles", false);
 
+        public bool AnalyzeCompletedDownloadFiles => GetValueBoolean("AnalyzeCompletedDownloadFiles", false);
+
         public bool UseSeriesInfoLanguage => GetValueBoolean("UseSeriesInfoLanguage", false);
 
         public string TheTvdbApiKey => GetValue("TheTvdbApiKey", string.Empty);

@@ -29,6 +29,7 @@ interface InteractiveImport extends ModelBase {
   size: number;
   releaseGroup: string;
   quality: QualityModel;
+  qualityManuallySelected?: boolean;
   languages: Language[];
   series?: Series;
   seasonNumber: number;

@@ -514,6 +514,8 @@
     "SeriesInfoLanguageHelpTextWarning": "Existující seriály vyžadují obnovení, aby se metadata aktualizovala",
     "PreserveDownloadsForExistingEpisodes": "Zachovat stažené soubory pro existující epizody",
     "PreserveDownloadsForExistingEpisodesHelpText": "Když dokončené stahování odpovídá jedné nebo více epizodám, které už mají soubor, zablokuje automatický import a nechá ho ve frontě pro ruční kontrolu.",
+    "AnalyzeCompletedDownloadFiles": "Analyzovat dokončené stažené soubory",
+    "AnalyzeCompletedDownloadFilesHelpText": "Analyzuje dokončené stažené soubory před importem, aby se ve frontě zpřesnila kvalita a jazyky podle skutečného mediálního souboru. Analyzují se jen dokončená stahování a každá sledovaná cesta jen jednou.",
     "UseSeriesInfoLanguage": "Použít jazyk informací o seriálech",
     "UseSeriesInfoLanguageHelpText": "Použije nastavený jazyk informací o seriálech pro lokalizované názvy a popisy z TheTVDB. Vyžaduje TheTVDB API klíč.",
     "TheTvdbApiKey": "TheTVDB API klíč",
