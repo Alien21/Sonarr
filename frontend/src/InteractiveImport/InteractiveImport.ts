@@ -31,6 +31,7 @@ interface InteractiveImport extends ModelBase {
   quality: QualityModel;
   qualityManuallySelected?: boolean;
   languages: Language[];
+  subtitleLanguages?: Language[];
   series?: Series;
   seasonNumber: number;
   episodes: Episode[];

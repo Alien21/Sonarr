@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'Components/Icon';
 import LoadingIndicator from 'Components/Loading/LoadingIndicator';
 import TableRowCell from 'Components/Table/Cells/TableRowCell';
@@ -32,6 +32,7 @@ import {
   reprocessInteractiveImportItems,
   updateInteractiveImportItem,
 } from 'Store/Actions/interactiveImportActions';
+import createUISettingsSelector from 'Store/Selectors/createUISettingsSelector';
 import CustomFormat from 'typings/CustomFormat';
 import { SelectStateInputProps } from 'typings/props';
 import Rejection from 'typings/Rejection';
@@ -55,6 +56,34 @@ type SelectedChangeProps = SelectStateInputProps & {
   hasEpisodeFileId: boolean;
 };
 
+function sortLanguagesByPreference(
+  languages: Language[] = [],
+  seriesInfoLanguage: number
+) {
+  return languages
+    .map((language, index) => ({ language, index }))
+    .sort((a, b) => {
+      const priorityDiff =
+        getLanguagePriority(a.language, seriesInfoLanguage) -
+        getLanguagePriority(b.language, seriesInfoLanguage);
+
+      return priorityDiff || a.index - b.index;
+    })
+    .map((item) => item.language);
+}
+
+function getLanguagePriority(language: Language, seriesInfoLanguage: number) {
+  if (language.id === seriesInfoLanguage) {
+    return 0;
+  }
+
+  if (language.id === 1) {
+    return 1;
+  }
+
+  return 2;
+}
+
 interface InteractiveImportRowProps {
   id: number;
   allowSeriesChange: boolean;
@@ -65,6 +94,7 @@ interface InteractiveImportRowProps {
   releaseGroup?: string;
   quality?: QualityModel;
   languages?: Language[];
+  subtitleLanguages?: Language[];
   size: number;
   releaseType: ReleaseType;
   customFormats?: CustomFormat[];
@@ -90,6 +120,7 @@ function InteractiveImportRow(props: InteractiveImportRowProps) {
     episodes = [],
     quality,
     languages,
+    subtitleLanguages = [],
     releaseGroup,
     size,
     releaseType,
@@ -107,6 +138,7 @@ function InteractiveImportRow(props: InteractiveImportRowProps) {
   } = props;
 
   const dispatch = useDispatch();
+  const { seriesInfoLanguage } = useSelector(createUISettingsSelector());
 
   const isSeriesColumnVisible = useMemo(
     () => columns.find((c) => c.name === 'series')?.isVisible ?? false,
@@ -393,6 +425,14 @@ function InteractiveImportRow(props: InteractiveImportRowProps) {
   const showQualityPlaceholder = isSelected && !quality;
   const showLanguagePlaceholder = isSelected && !languages;
   const showIndexerFlagsPlaceholder = isSelected && !indexerFlags;
+  const sortedLanguages = useMemo(
+    () => sortLanguagesByPreference(languages, seriesInfoLanguage),
+    [languages, seriesInfoLanguage]
+  );
+  const sortedSubtitleLanguages = useMemo(
+    () => sortLanguagesByPreference(subtitleLanguages, seriesInfoLanguage),
+    [subtitleLanguages, seriesInfoLanguage]
+  );
 
   return (
     <TableRow>
@@ -485,9 +525,16 @@ function InteractiveImportRow(props: InteractiveImportRowProps) {
         {showLanguagePlaceholder && <InteractiveImportRowCellPlaceholder />}
 
         {!showLanguagePlaceholder && !!languages && (
-          <EpisodeLanguages className={styles.label} languages={languages} />
+          <EpisodeLanguages
+            className={styles.label}
+            languages={sortedLanguages}
+          />
         )}
       </TableRowCellButton>
+
+      <TableRowCell className={styles.languages}>
+        <EpisodeLanguages languages={sortedSubtitleLanguages} />
+      </TableRowCell>
 
       <TableRowCell>{formatBytes(size)}</TableRowCell>
 

@@ -10,8 +10,10 @@ using NzbDrone.Core.Configuration;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
+using NzbDrone.Core.Extras.Subtitles;
 using NzbDrone.Core.Languages;
 using NzbDrone.Core.MediaFiles.EpisodeImport.Aggregation;
+using NzbDrone.Core.MediaFiles.MediaInfo;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser;
@@ -25,7 +27,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
     {
         List<ManualImportItem> GetMediaFiles(int seriesId, int? seasonNumber);
         List<ManualImportItem> GetMediaFiles(string path, string downloadId, int? seriesId, bool filterExistingFiles);
-        ManualImportItem ReprocessItem(string path, string downloadId, int seriesId, int? seasonNumber, List<int> episodeIds, string releaseGroup, QualityModel quality, List<Language> languages, int indexerFlags, ReleaseType releaseType);
+        ManualImportItem ReprocessItem(string path, string downloadId, int seriesId, int? seasonNumber, List<int> episodeIds, string releaseGroup, QualityModel quality, bool qualityManuallySelected, List<Language> languages, int indexerFlags, ReleaseType releaseType);
     }
 
     public class ManualImportService : IExecute<ManualImportCommand>, IManualImportService
@@ -142,12 +144,13 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
             return ProcessFolder(path, path, downloadId, seriesId, filterExistingFiles);
         }
 
-        public ManualImportItem ReprocessItem(string path, string downloadId, int seriesId, int? seasonNumber, List<int> episodeIds, string releaseGroup, QualityModel quality, List<Language> languages, int indexerFlags, ReleaseType releaseType)
+        public ManualImportItem ReprocessItem(string path, string downloadId, int seriesId, int? seasonNumber, List<int> episodeIds, string releaseGroup, QualityModel quality, bool qualityManuallySelected, List<Language> languages, int indexerFlags, ReleaseType releaseType)
         {
             var rootFolder = Path.GetDirectoryName(path);
             var series = _seriesService.GetSeries(seriesId);
 
             var languageParse = LanguageParser.ParseLanguages(path);
+            var selectedLanguages = HasKnownLanguages(languages) ? languages : null;
 
             if (languageParse.Count <= 1 && languageParse.First() == Language.Unknown && series != null)
             {
@@ -157,16 +160,16 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
 
             if (episodeIds.Any())
             {
-                var downloadClientItem = GetTrackedDownload(downloadId)?.DownloadItem;
+                var trackedDownload = GetTrackedDownload(downloadId);
+                var downloadClientItem = trackedDownload?.DownloadItem;
                 var episodes = _episodeService.GetEpisodes(episodeIds);
                 var finalReleaseGroup = releaseGroup.IsNullOrWhiteSpace()
                     ? Parser.Parser.ParseReleaseGroup(path)
                     : releaseGroup;
-                var finalQuality = quality.Quality == Quality.Unknown ? QualityParser.ParseQuality(path) : quality;
-                var finalLanguges =
-                    languages?.Count <= 1 && (languages?.SingleOrDefault() ?? Language.Unknown) == Language.Unknown
-                        ? languageParse
-                        : languages;
+                var initialQuality = qualityManuallySelected && quality != null && quality.Quality != Quality.Unknown
+                    ? quality
+                    : QualityParser.ParseQuality(path);
+                var initialLanguages = selectedLanguages ?? languageParse;
 
                 var localEpisode = new LocalEpisode();
                 localEpisode.Series = series;
@@ -179,27 +182,46 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                 localEpisode.ExistingFile = series.Path.IsParentPath(path);
                 localEpisode.Size = _diskProvider.GetFileSize(path);
                 localEpisode.ReleaseGroup = finalReleaseGroup;
-                localEpisode.Languages = finalLanguges;
-                localEpisode.Quality = finalQuality;
+                localEpisode.Languages = initialLanguages;
+                localEpisode.Quality = initialQuality;
                 localEpisode.IndexerFlags = (IndexerFlags)indexerFlags;
                 localEpisode.ReleaseType = releaseType;
 
                 localEpisode.CustomFormats = _formatCalculator.ParseCustomFormat(localEpisode);
                 localEpisode.CustomFormatScore = localEpisode.Series?.QualityProfile?.Value.CalculateCustomFormatScore(localEpisode.CustomFormats) ?? 0;
 
-                // Augment episode file so imported files have all additional information an automatic import would
-                localEpisode = _aggregationService.Augment(localEpisode, downloadClientItem);
+                ApplyTrackedDownloadAnalysis(localEpisode, trackedDownload);
+
+                if (!HasKnownQuality(localEpisode.Quality) ||
+                    !HasKnownLanguages(localEpisode.Languages) ||
+                    !HasKnownLanguages(GetTrackedDownloadSubtitleLanguages(trackedDownload, localEpisode)))
+                {
+                    // Fall back to reading the file only when queue analysis did not already provide the metadata.
+                    localEpisode = _aggregationService.Augment(localEpisode, downloadClientItem);
+                    ApplyTrackedDownloadAnalysis(localEpisode, trackedDownload);
+                }
 
                 // Reapply the user-chosen values.
                 localEpisode.Series = series;
                 localEpisode.Episodes = episodes;
                 localEpisode.ReleaseGroup = finalReleaseGroup;
-                localEpisode.Quality = finalQuality;
-                localEpisode.Languages = finalLanguges;
                 localEpisode.IndexerFlags = (IndexerFlags)indexerFlags;
                 localEpisode.ReleaseType = releaseType;
 
-                return MapItem(_importDecisionMaker.GetDecision(localEpisode, downloadClientItem), rootFolder, downloadId, null);
+                if (qualityManuallySelected && quality != null && quality.Quality != Quality.Unknown)
+                {
+                    localEpisode.Quality = quality;
+                }
+
+                if (selectedLanguages != null)
+                {
+                    localEpisode.Languages = selectedLanguages;
+                }
+
+                localEpisode.CustomFormats = _formatCalculator.ParseCustomFormat(localEpisode);
+                localEpisode.CustomFormatScore = localEpisode.Series?.QualityProfile?.Value.CalculateCustomFormatScore(localEpisode.CustomFormats) ?? 0;
+
+                return MapItem(_importDecisionMaker.GetDecision(localEpisode, downloadClientItem), rootFolder, downloadId, null, GetTrackedDownloadSubtitleLanguages(trackedDownload, localEpisode));
             }
 
             // This case will happen if the user selected a season, but didn't select the episodes in the season then changed the language or quality.
@@ -223,8 +245,8 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                     ExistingFile = series.Path.IsParentPath(path),
                     Size = _diskProvider.GetFileSize(path),
                     ReleaseGroup = releaseGroup.IsNullOrWhiteSpace() ? Parser.Parser.ParseReleaseGroup(path) : releaseGroup,
-                    Languages = languages?.Count <= 1 && (languages?.SingleOrDefault() ?? Language.Unknown) == Language.Unknown ? LanguageParser.ParseLanguages(path) : languages,
-                    Quality = quality.Quality == Quality.Unknown ? QualityParser.ParseQuality(path) : quality,
+                    Languages = selectedLanguages ?? LanguageParser.ParseLanguages(path),
+                    Quality = qualityManuallySelected && quality != null && quality.Quality != Quality.Unknown ? quality : QualityParser.ParseQuality(path),
                     IndexerFlags = (IndexerFlags)indexerFlags,
                     ReleaseType = releaseType
                 };
@@ -333,18 +355,40 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
 
                 if (series == null)
                 {
+                    var downloadClientItem = trackedDownload?.ImportItem ?? trackedDownload?.DownloadItem;
+                    var directoryInfo = new DirectoryInfo(baseFolder);
+                    var fileEpisodeInfo = Parser.Parser.ParsePath(file, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
+
                     var localEpisode = new LocalEpisode();
                     localEpisode.Path = file;
+                    localEpisode.DownloadClientEpisodeInfo = trackedDownload?.RemoteEpisode?.ParsedEpisodeInfo ??
+                                                              (downloadClientItem == null ? null : Parser.Parser.ParseTitle(downloadClientItem.Title, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne));
+                    localEpisode.DownloadItem = downloadClientItem;
+                    localEpisode.FolderEpisodeInfo = Parser.Parser.ParseTitle(directoryInfo.Name, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
+                    localEpisode.FileEpisodeInfo = fileEpisodeInfo ?? GetFallbackFileEpisodeInfo(file);
+                    localEpisode.ExistingFile = false;
+                    localEpisode.SceneSource = true;
                     localEpisode.ReleaseGroup = Parser.Parser.ParseReleaseGroup(file);
                     localEpisode.Quality = QualityParser.ParseQuality(file);
                     localEpisode.Languages = LanguageParser.ParseLanguages(file);
                     localEpisode.Size = _diskProvider.GetFileSize(file);
 
+                    ApplyTrackedDownloadAnalysis(localEpisode, trackedDownload);
+
+                    if (!HasKnownQuality(localEpisode.Quality) ||
+                        !HasKnownLanguages(localEpisode.Languages) ||
+                        !HasKnownLanguages(GetTrackedDownloadSubtitleLanguages(trackedDownload, localEpisode)))
+                    {
+                        localEpisode = _aggregationService.Augment(localEpisode, downloadClientItem);
+                        ApplyTrackedDownloadAnalysis(localEpisode, trackedDownload);
+                    }
+
                     return MapItem(new ImportDecision(localEpisode,
                         new ImportRejection(ImportRejectionReason.UnknownSeries, "Unknown Series")),
                         rootFolder,
                         downloadId,
-                        null);
+                        null,
+                        GetTrackedDownloadSubtitleLanguages(trackedDownload, localEpisode));
                 }
 
                 var importDecisions = _importDecisionMaker.GetImportDecisions(new List<string> { file },
@@ -371,6 +415,17 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                 Name = Path.GetFileNameWithoutExtension(file),
                 Size = _diskProvider.GetFileSize(file),
                 Rejections = new List<ImportRejection>()
+            };
+        }
+
+        private ParsedEpisodeInfo GetFallbackFileEpisodeInfo(string path)
+        {
+            return new ParsedEpisodeInfo
+            {
+                ReleaseTitle = Path.GetFileNameWithoutExtension(path),
+                SeriesTitle = Path.GetFileNameWithoutExtension(path),
+                Quality = QualityParser.ParseQuality(path),
+                Languages = LanguageParser.ParseLanguages(path)
             };
         }
 
@@ -409,7 +464,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
             return null;
         }
 
-        private ManualImportItem MapItem(ImportDecision decision, string rootFolder, string downloadId, string folderName)
+        private ManualImportItem MapItem(ImportDecision decision, string rootFolder, string downloadId, string folderName, List<Language> subtitleLanguages = null)
         {
             var item = new ManualImportItem();
 
@@ -440,7 +495,8 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
 
             item.ReleaseGroup = decision.LocalEpisode.ReleaseGroup;
             item.Quality = decision.LocalEpisode.Quality;
-            item.Languages = decision.LocalEpisode.Languages;
+            item.Languages = PrioritizeLanguages(decision.LocalEpisode.Languages);
+            item.SubtitleLanguages = subtitleLanguages ?? GetSubtitleLanguages(decision.LocalEpisode);
             item.Size = _diskProvider.GetFileSize(decision.LocalEpisode.Path);
             item.Rejections = decision.Rejections;
             item.IndexerFlags = (int)decision.LocalEpisode.IndexerFlags;
@@ -470,7 +526,13 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
             item.Episodes = episodes.Where(e => e.EpisodeFileId == episodeFile.Id).ToList();
             item.ReleaseGroup = episodeFile.ReleaseGroup;
             item.Quality = episodeFile.Quality;
-            item.Languages = episodeFile.Languages;
+            item.Languages = PrioritizeLanguages(episodeFile.Languages);
+            item.SubtitleLanguages = GetSubtitleLanguages(new LocalEpisode
+            {
+                Path = item.Path,
+                FileEpisodeInfo = Parser.Parser.ParsePath(item.Path, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne),
+                MediaInfo = episodeFile.MediaInfo
+            });
             item.IndexerFlags = (int)episodeFile.IndexerFlags;
             item.ReleaseType = episodeFile.ReleaseType;
             item.Size = _diskProvider.GetFileSize(item.Path);
@@ -479,6 +541,217 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
             item.CustomFormats = _formatCalculator.ParseCustomFormat(episodeFile, series);
 
             return item;
+        }
+
+        private List<Language> PrioritizeLanguages(List<Language> languages)
+        {
+            var preferredLanguage = Language.FindById(_configService.SeriesInfoLanguage);
+
+            return languages?
+                .Select((language, index) => new { Language = language, Index = index })
+                .OrderBy(item => GetLanguagePriority(item.Language, preferredLanguage))
+                .ThenBy(item => item.Index)
+                .Select(item => item.Language)
+                .ToList() ?? new List<Language>();
+        }
+
+        private bool HasKnownLanguages(List<Language> languages)
+        {
+            return languages?.Any() == true && languages.Any(language => language != Language.Unknown);
+        }
+
+        private bool HasKnownQuality(QualityModel quality)
+        {
+            return quality != null && quality.Quality != Quality.Unknown;
+        }
+
+        private void ApplyTrackedDownloadAnalysis(LocalEpisode localEpisode, TrackedDownload trackedDownload)
+        {
+            if (localEpisode == null || trackedDownload == null)
+            {
+                return;
+            }
+
+            var analyzedFile = GetTrackedDownloadAnalyzedFile(trackedDownload, localEpisode);
+            var quality = analyzedFile?.Quality ?? trackedDownload.AnalyzedQuality;
+
+            if (HasKnownQuality(quality))
+            {
+                localEpisode.Quality = quality;
+            }
+
+            var languages = analyzedFile?.Languages ?? trackedDownload.AnalyzedLanguages;
+
+            if (HasKnownLanguages(languages))
+            {
+                localEpisode.Languages = languages;
+            }
+        }
+
+        private List<Language> GetTrackedDownloadSubtitleLanguages(TrackedDownload trackedDownload, LocalEpisode localEpisode)
+        {
+            if (trackedDownload == null)
+            {
+                return null;
+            }
+
+            var analyzedFile = GetTrackedDownloadAnalyzedFile(trackedDownload, localEpisode);
+
+            if (HasKnownLanguages(analyzedFile?.SubtitleLanguages))
+            {
+                return PrioritizeLanguages(analyzedFile.SubtitleLanguages);
+            }
+
+            if (HasKnownLanguages(trackedDownload.AnalyzedSubtitleLanguages))
+            {
+                return PrioritizeLanguages(trackedDownload.AnalyzedSubtitleLanguages);
+            }
+
+            return null;
+        }
+
+        private AnalyzedDownloadFile GetTrackedDownloadAnalyzedFile(TrackedDownload trackedDownload, LocalEpisode localEpisode)
+        {
+            if (trackedDownload?.AnalyzedEpisodeFiles == null || localEpisode?.Episodes == null)
+            {
+                return null;
+            }
+
+            foreach (var episode in localEpisode.Episodes)
+            {
+                if (trackedDownload.AnalyzedEpisodeFiles.TryGetValue(episode.Id, out var analyzedFile))
+                {
+                    return analyzedFile;
+                }
+            }
+
+            return null;
+        }
+
+        private int GetLanguagePriority(Language language, Language preferredLanguage)
+        {
+            if (language == preferredLanguage)
+            {
+                return 0;
+            }
+
+            if (language == Language.English)
+            {
+                return 1;
+            }
+
+            return 2;
+        }
+
+        private List<Language> GetSubtitleLanguages(LocalEpisode localEpisode)
+        {
+            var languages = GetEmbeddedSubtitleLanguages(localEpisode.MediaInfo);
+
+            foreach (var subtitleFile in GetExternalSubtitleFiles(localEpisode))
+            {
+                languages.AddIfNotNull(subtitleFile.Info?.Language);
+            }
+
+            return PrioritizeLanguages(languages
+                .Where(language => language != Language.Unknown)
+                .GroupBy(language => language.Id)
+                .Select(group => group.First())
+                .ToList());
+        }
+
+        private List<Language> GetEmbeddedSubtitleLanguages(MediaInfoModel mediaInfo)
+        {
+            var languages = new List<Language>();
+            var embeddedSubtitleLanguages = mediaInfo?.Subtitles?
+                                                     .Where(language => language.IsNotNullOrWhiteSpace())
+                                                     .Distinct()
+                                                     .ToList() ?? new List<string>();
+
+            foreach (var subtitleLanguage in embeddedSubtitleLanguages)
+            {
+                languages.AddIfNotNull(IsoLanguages.Find(subtitleLanguage)?.Language);
+            }
+
+            return languages;
+        }
+
+        private List<ExternalSubtitleFile> GetExternalSubtitleFiles(LocalEpisode localEpisode)
+        {
+            if (localEpisode?.Path.IsNullOrWhiteSpace() != false)
+            {
+                return new List<ExternalSubtitleFile>();
+            }
+
+            var sourceFolder = _diskProvider.GetParentFolder(localEpisode.Path);
+
+            if (sourceFolder.IsNullOrWhiteSpace() || !_diskProvider.FolderExists(sourceFolder))
+            {
+                return new List<ExternalSubtitleFile>();
+            }
+
+            var subtitleFiles = _diskProvider.GetFiles(sourceFolder, false)
+                                             .Where(file => SubtitleFileExtensions.Extensions.Contains(Path.GetExtension(file)))
+                                             .ToList();
+
+            if (subtitleFiles.Empty())
+            {
+                return new List<ExternalSubtitleFile>();
+            }
+
+            var sourceFileName = Path.GetFileNameWithoutExtension(localEpisode.Path);
+            var matchingFiles = subtitleFiles
+                .Where(file => Path.GetFileNameWithoutExtension(file).StartsWithIgnoreCase(sourceFileName))
+                .ToList();
+
+            if (matchingFiles.Empty() && localEpisode.FileEpisodeInfo != null)
+            {
+                matchingFiles = subtitleFiles
+                    .Where(file => SubtitleMatchesLocalEpisode(file, localEpisode.FileEpisodeInfo))
+                    .ToList();
+            }
+
+            if (matchingFiles.Empty())
+            {
+                var videoFiles = _diskProvider.GetFiles(sourceFolder, false)
+                                              .Where(file => MediaFileExtensions.Extensions.Contains(Path.GetExtension(file)))
+                                              .ToList();
+
+                if (videoFiles.Count == 1)
+                {
+                    matchingFiles = subtitleFiles;
+                }
+            }
+
+            return matchingFiles
+                .Select(file => new ExternalSubtitleFile
+                {
+                    Path = file,
+                    Info = LanguageParser.ParseSubtitleLanguageInformation(file)
+                })
+                .ToList();
+        }
+
+        private bool SubtitleMatchesLocalEpisode(string subtitleFile, ParsedEpisodeInfo fileEpisodeInfo)
+        {
+            var subtitleEpisodeInfo = Parser.Parser.ParsePath(subtitleFile, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
+
+            if (subtitleEpisodeInfo == null ||
+                !string.Equals(subtitleEpisodeInfo.SeriesTitle, fileEpisodeInfo.SeriesTitle, StringComparison.InvariantCultureIgnoreCase) ||
+                subtitleEpisodeInfo.SeasonNumber != fileEpisodeInfo.SeasonNumber)
+            {
+                return false;
+            }
+
+            return (fileEpisodeInfo.EpisodeNumbers.Any() &&
+                    subtitleEpisodeInfo.EpisodeNumbers.SequenceEqual(fileEpisodeInfo.EpisodeNumbers)) ||
+                   (fileEpisodeInfo.AbsoluteEpisodeNumbers.Any() &&
+                    subtitleEpisodeInfo.AbsoluteEpisodeNumbers.SequenceEqual(fileEpisodeInfo.AbsoluteEpisodeNumbers));
+        }
+
+        private class ExternalSubtitleFile
+        {
+            public string Path { get; set; }
+            public SubtitleTitleInfo Info { get; set; }
         }
 
         public void Execute(ManualImportCommand message)

@@ -28,6 +28,7 @@ namespace Sonarr.Api.V3.ManualImport
         public string ReleaseGroup { get; set; }
         public QualityModel Quality { get; set; }
         public List<Language> Languages { get; set; }
+        public List<Language> SubtitleLanguages { get; set; }
         public int QualityWeight { get; set; }
         public string DownloadId { get; set; }
         public List<CustomFormatResource> CustomFormats { get; set; }
@@ -64,6 +65,7 @@ namespace Sonarr.Api.V3.ManualImport
                 ReleaseGroup = model.ReleaseGroup,
                 Quality = model.Quality,
                 Languages = model.Languages,
+                SubtitleLanguages = model.SubtitleLanguages,
                 CustomFormats = customFormats.ToResource(false),
                 CustomFormatScore = customFormatScore,
 

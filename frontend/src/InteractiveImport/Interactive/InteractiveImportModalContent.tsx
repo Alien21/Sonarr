@@ -125,6 +125,12 @@ const COLUMNS = [
     isVisible: true,
   },
   {
+    name: 'subtitleLanguages',
+    label: () => translate('SubtitleLanguages'),
+    isSortable: true,
+    isVisible: true,
+  },
+  {
     name: 'size',
     label: () => translate('Size'),
     isSortable: true,

@@ -18,6 +18,7 @@ namespace Sonarr.Api.V3.ManualImport
         public QualityModel Quality { get; set; }
         public bool? QualityManuallySelected { get; set; }
         public List<Language> Languages { get; set; }
+        public List<Language> SubtitleLanguages { get; set; }
         public string ReleaseGroup { get; set; }
         public string DownloadId { get; set; }
         public List<CustomFormatResource> CustomFormats { get; set; }

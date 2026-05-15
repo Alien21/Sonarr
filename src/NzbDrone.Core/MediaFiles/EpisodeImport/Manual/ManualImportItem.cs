@@ -20,6 +20,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
         public int? EpisodeFileId { get; set; }
         public QualityModel Quality { get; set; }
         public List<Language> Languages { get; set; }
+        public List<Language> SubtitleLanguages { get; set; }
         public string ReleaseGroup { get; set; }
         public string DownloadId { get; set; }
         public List<CustomFormat> CustomFormats { get; set; }
@@ -31,6 +32,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
         public ManualImportItem()
         {
             CustomFormats = new List<CustomFormat>();
+            SubtitleLanguages = new List<Language>();
         }
     }
 }
