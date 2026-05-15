@@ -81,6 +81,7 @@ namespace NzbDrone.Core.Configuration
         string HmacSalt { get; }
 
         // Extensions
+        bool PreferDualAudio { get; }
         bool ParseTvdbIdFromReleaseName { get; }
         bool BlockAutoImportForExistingEpisodeFiles { get; }
         bool AnalyzeCompletedDownloadFiles { get; }

@@ -684,6 +684,8 @@
   "ExportCustomFormat": "Export Custom Format",
   "Extend": "Extend",
   "Extensions": "Extensions",
+  "PreferDualAudio": "Prefer Dual Audio",
+  "PreferDualAudioHelpText": "Prefer completed downloads with the configured Series Info Language audio plus another audio language when replacing existing episode files that do not already have preferred dual audio. Same or better quality files can import automatically if they are not more than 30% smaller; lower quality or much smaller files stay in the queue for manual review.",
   "ParseTvdbIdFromReleaseName": "Parse TVDB ID from Release Name",
   "ParseTvdbIdFromReleaseNameHelpText": "Use tvdb:12345 tags in release names and parent folders to match the series by TVDB ID before normal title or alias matching. Disabled by default.",
   "PreserveDownloadsForExistingEpisodes": "Preserve Downloads for Existing Episodes",

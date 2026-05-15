@@ -13,14 +13,17 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Specifications
     {
         private readonly IConfigService _configService;
         private readonly ICustomFormatCalculationService _formatService;
+        private readonly IDualAudioImportPreference _dualAudioImportPreference;
         private readonly Logger _logger;
 
         public UpgradeSpecification(IConfigService configService,
                                     ICustomFormatCalculationService formatService,
+                                    IDualAudioImportPreference dualAudioImportPreference,
                                     Logger logger)
         {
             _configService = configService;
             _formatService = formatService;
+            _dualAudioImportPreference = dualAudioImportPreference;
             _logger = logger;
         }
 
@@ -41,6 +44,13 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Specifications
                 }
 
                 var qualityCompare = qualityComparer.Compare(localEpisode.Quality.Quality, episodeFile.Quality.Quality);
+                var dualAudioPreference = _dualAudioImportPreference.Evaluate(localEpisode, episodeFile) ?? DualAudioImportPreferenceResult.None();
+
+                if (dualAudioPreference.RequiresManualReview)
+                {
+                    _logger.Debug("Preferred dual-audio upgrade requires manual review for episode file. Existing quality: {0}. New Quality {1}. Skipping {2}", episodeFile.Quality.Quality, localEpisode.Quality.Quality, localEpisode.Path);
+                    return ImportSpecDecision.Reject(ImportRejectionReason.DualAudioUpgradeManualReview, dualAudioPreference.ManualReviewReason);
+                }
 
                 if (qualityCompare < 0)
                 {
@@ -65,6 +75,17 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Specifications
 
                 if (qualityCompare == 0 && newFormatScore < currentFormatScore)
                 {
+                    if (dualAudioPreference.IsPreferredUpgrade)
+                    {
+                        _logger.Debug("New item's custom formats [{0}] ({1}) do not improve on [{2}] ({3}), but it is a preferred dual-audio upgrade, accepting for this episode file",
+                            newFormats != null ? newFormats.ConcatToString() : "",
+                            newFormatScore,
+                            currentFormats != null ? currentFormats.ConcatToString() : "",
+                            currentFormatScore);
+
+                        continue;
+                    }
+
                     _logger.Debug("New item's custom formats [{0}] ({1}) do not improve on [{2}] ({3}), skipping",
                         newFormats != null ? newFormats.ConcatToString() : "",
                         newFormatScore,

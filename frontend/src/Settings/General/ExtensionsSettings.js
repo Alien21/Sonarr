@@ -11,6 +11,7 @@ function ExtensionsSettings(props) {
   const { settings, onInputChange } = props;
 
   const {
+    preferDualAudio,
     parseTvdbIdFromReleaseName,
     blockAutoImportForExistingEpisodeFiles,
     analyzeCompletedDownloadFiles,
@@ -20,6 +21,18 @@ function ExtensionsSettings(props) {
 
   return (
     <FieldSet legend={translate('Extensions')}>
+      <FormGroup size={sizes.MEDIUM}>
+        <FormLabel>{translate('PreferDualAudio')}</FormLabel>
+
+        <FormInputGroup
+          type={inputTypes.CHECK}
+          name="preferDualAudio"
+          helpText={translate('PreferDualAudioHelpText')}
+          onChange={onInputChange}
+          {...preferDualAudio}
+        />
+      </FormGroup>
+
       <FormGroup size={sizes.MEDIUM}>
         <FormLabel>{translate('ParseTvdbIdFromReleaseName')}</FormLabel>
 

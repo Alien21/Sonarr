@@ -384,6 +384,8 @@ namespace NzbDrone.Core.Configuration
 
         public string HmacSalt => GetValue("HmacSalt", Guid.NewGuid().ToString(), true);
 
+        public bool PreferDualAudio => GetValueBoolean("PreferDualAudio", false);
+
         public bool ParseTvdbIdFromReleaseName => GetValueBoolean("ParseTvdbIdFromReleaseName", false);
 
         public bool BlockAutoImportForExistingEpisodeFiles => GetValueBoolean("BlockAutoImportForExistingEpisodeFiles", false);

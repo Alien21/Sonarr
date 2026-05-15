@@ -16,6 +16,7 @@ using NzbDrone.Core.Languages;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.EpisodeImport;
 using NzbDrone.Core.MediaFiles.EpisodeImport.Aggregation;
+using NzbDrone.Core.MediaFiles.MediaInfo;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Parser;
@@ -44,6 +45,7 @@ namespace NzbDrone.Core.Download
         private readonly IDiskScanService _diskScanService;
         private readonly IMakeImportDecision _importDecisionMaker;
         private readonly IAggregationService _aggregationService;
+        private readonly IDualAudioImportPreference _dualAudioImportPreference;
         private readonly IParsingService _parsingService;
         private readonly ISeriesService _seriesService;
         private readonly ITrackedDownloadAlreadyImported _trackedDownloadAlreadyImported;
@@ -67,6 +69,7 @@ namespace NzbDrone.Core.Download
                                         IDiskScanService diskScanService,
                                         IMakeImportDecision importDecisionMaker,
                                         IAggregationService aggregationService,
+                                        IDualAudioImportPreference dualAudioImportPreference,
                                         IParsingService parsingService,
                                         ISeriesService seriesService,
                                         ITrackedDownloadAlreadyImported trackedDownloadAlreadyImported,
@@ -90,6 +93,7 @@ namespace NzbDrone.Core.Download
             _diskScanService = diskScanService;
             _importDecisionMaker = importDecisionMaker;
             _aggregationService = aggregationService;
+            _dualAudioImportPreference = dualAudioImportPreference;
             _parsingService = parsingService;
             _seriesService = seriesService;
             _trackedDownloadAlreadyImported = trackedDownloadAlreadyImported;
@@ -736,23 +740,8 @@ namespace NzbDrone.Core.Download
         private List<LocalEpisode> GetCompletedDownloadQueueEpisodes(TrackedDownload trackedDownload, string outputPath)
         {
             var series = trackedDownload.RemoteEpisode?.Series;
-            ParsedEpisodeInfo folderInfo = null;
-            List<string> videoFiles;
 
-            if (_diskProvider.FolderExists(outputPath))
-            {
-                var directoryInfo = new DirectoryInfo(outputPath);
-                folderInfo = Parser.Parser.ParseTitle(GetCleanedUpFolderName(directoryInfo.Name), _configService.ParseTvdbIdFromReleaseName);
-                videoFiles = _diskScanService.FilterPaths(directoryInfo.FullName, _diskScanService.GetVideoFiles(directoryInfo.FullName))
-                                            .OrderBy(path => path)
-                                            .ToList();
-            }
-            else if (_diskProvider.FileExists(outputPath) &&
-                     MediaFileExtensions.Extensions.Contains(Path.GetExtension(outputPath)))
-            {
-                videoFiles = new List<string> { outputPath };
-            }
-            else
+            if (!TryGetCompletedDownloadVideoFiles(outputPath, out var folderInfo, out var videoFiles))
             {
                 return new List<LocalEpisode>();
             }
@@ -774,6 +763,45 @@ namespace NzbDrone.Core.Download
                 .Take(1)
                 .OrderBy(localEpisode => localEpisode.Path)
                 .ToList();
+        }
+
+        private List<ImportDecision> GetCompletedDownloadImportDecisions(TrackedDownload trackedDownload, string outputPath)
+        {
+            var series = trackedDownload.RemoteEpisode?.Series;
+
+            if (series == null ||
+                !TryGetCompletedDownloadVideoFiles(outputPath, out var folderInfo, out var videoFiles))
+            {
+                return new List<ImportDecision>();
+            }
+
+            return _importDecisionMaker.GetImportDecisions(videoFiles, series, trackedDownload.ImportItem, folderInfo, true, false);
+        }
+
+        private bool TryGetCompletedDownloadVideoFiles(string outputPath, out ParsedEpisodeInfo folderInfo, out List<string> videoFiles)
+        {
+            folderInfo = null;
+
+            if (_diskProvider.FolderExists(outputPath))
+            {
+                var directoryInfo = new DirectoryInfo(outputPath);
+                folderInfo = Parser.Parser.ParseTitle(GetCleanedUpFolderName(directoryInfo.Name), _configService.ParseTvdbIdFromReleaseName);
+                videoFiles = _diskScanService.FilterPaths(directoryInfo.FullName, _diskScanService.GetVideoFiles(directoryInfo.FullName))
+                                            .OrderBy(path => path)
+                                            .ToList();
+
+                return true;
+            }
+
+            if (_diskProvider.FileExists(outputPath) &&
+                MediaFileExtensions.Extensions.Contains(Path.GetExtension(outputPath)))
+            {
+                videoFiles = new List<string> { outputPath };
+                return true;
+            }
+
+            videoFiles = new List<string>();
+            return false;
         }
 
         private LocalEpisode GetCompletedDownloadQueueEpisode(TrackedDownload trackedDownload, string videoFile, ParsedEpisodeInfo folderInfo, bool otherVideoFiles)
@@ -1018,11 +1046,193 @@ namespace NzbDrone.Core.Download
 
             AnalyzeCompletedDownloadFile(trackedDownload);
 
+            if (ShouldBypassExistingEpisodeAutoImportBlock(trackedDownload))
+            {
+                return false;
+            }
+
             trackedDownload.Warn("Auto-import blocked: one or more matched episodes already have files in library.");
             _logger.Warn("Auto-import blocked for '{0}': one or more matched episodes already have files in library.", trackedDownload.DownloadItem.Title);
             SetStateToImportBlocked(trackedDownload);
 
             return true;
+        }
+
+        private bool ShouldBypassExistingEpisodeAutoImportBlock(TrackedDownload trackedDownload)
+        {
+            if (trackedDownload.ImportItem == null ||
+                trackedDownload.ImportItem.OutputPath.FullPath.IsNullOrWhiteSpace())
+            {
+                return false;
+            }
+
+            var decisions = GetCompletedDownloadImportDecisions(trackedDownload, trackedDownload.ImportItem.OutputPath.FullPath);
+            var qualityUpgradeDecision = GetApprovedQualityUpgradeDecision(decisions);
+
+            if (qualityUpgradeDecision != null)
+            {
+                _logger.Info("Auto-import block bypassed: '{0}' has an approved quality upgrade '{1}'.", trackedDownload.DownloadItem.Title, qualityUpgradeDecision.LocalEpisode.Path);
+                return true;
+            }
+
+            if (!_configService.PreferDualAudio)
+            {
+                return false;
+            }
+
+            var preferredDualAudioDecision = decisions.FirstOrDefault(decision =>
+            {
+                if (!decision.Approved)
+                {
+                    return false;
+                }
+
+                return HasPreferredDualAudioUpgrade(decision.LocalEpisode);
+            });
+
+            if (preferredDualAudioDecision == null)
+            {
+                return false;
+            }
+
+            _logger.Info("Auto-import block bypassed: '{0}' has an approved preferred dual-audio upgrade '{1}'.", trackedDownload.DownloadItem.Title, preferredDualAudioDecision.LocalEpisode.Path);
+            return true;
+        }
+
+        private ImportDecision GetApprovedQualityUpgradeDecision(List<ImportDecision> decisions)
+        {
+            return decisions.FirstOrDefault(decision =>
+                decision.Approved &&
+                IsQualityUpgradeForExistingEpisodeFiles(decision.LocalEpisode));
+        }
+
+        private bool IsQualityUpgradeForExistingEpisodeFiles(LocalEpisode localEpisode)
+        {
+            if (localEpisode?.Series?.QualityProfile == null ||
+                localEpisode.Quality == null)
+            {
+                return false;
+            }
+
+            var existingEpisodeFiles = localEpisode.Episodes?
+                .Where(episode => episode.EpisodeFileId > 0)
+                .Select(episode => episode.EpisodeFile?.Value)
+                .Where(episodeFile => episodeFile != null)
+                .ToList();
+
+            if (existingEpisodeFiles.Empty())
+            {
+                return false;
+            }
+
+            var qualityComparer = new QualityModelComparer(localEpisode.Series.QualityProfile.Value);
+
+            if (ReplacesPreferredDualAudioWithNonDual(localEpisode, existingEpisodeFiles))
+            {
+                return false;
+            }
+
+            return existingEpisodeFiles.All(episodeFile =>
+                episodeFile.Quality != null &&
+                qualityComparer.Compare(localEpisode.Quality, episodeFile.Quality) > 0);
+        }
+
+        private bool ReplacesPreferredDualAudioWithNonDual(LocalEpisode localEpisode, List<EpisodeFile> existingEpisodeFiles)
+        {
+            if (!_configService.PreferDualAudio)
+            {
+                return false;
+            }
+
+            var preferredLanguage = (Language)_configService.SeriesInfoLanguage;
+
+            if (!IsKnownLanguage(preferredLanguage) ||
+                existingEpisodeFiles.None(episodeFile => HasPreferredDualAudio(episodeFile.MediaInfo, episodeFile.Languages, preferredLanguage)))
+            {
+                return false;
+            }
+
+            return !HasPreferredDualAudio(localEpisode.MediaInfo, localEpisode.Languages, preferredLanguage);
+        }
+
+        private static bool HasPreferredDualAudio(MediaInfoModel mediaInfo, List<Language> parsedLanguages, Language preferredLanguage)
+        {
+            var audioLanguages = GetAudioLanguages(mediaInfo, parsedLanguages);
+
+            return audioLanguages.KnownLanguages.Contains(preferredLanguage) &&
+                   audioLanguages.DistinctAudioLanguages.Count > 1;
+        }
+
+        private static AudioLanguageSet GetAudioLanguages(MediaInfoModel mediaInfo, List<Language> parsedLanguages)
+        {
+            var languages = new AudioLanguageSet();
+
+            foreach (var audioLanguage in mediaInfo?.AudioLanguages ?? new List<string>())
+            {
+                AddRawLanguage(languages, audioLanguage);
+            }
+
+            foreach (var language in parsedLanguages ?? new List<Language>())
+            {
+                AddKnownLanguage(languages, language);
+            }
+
+            return languages;
+        }
+
+        private static void AddRawLanguage(AudioLanguageSet languages, string rawLanguage)
+        {
+            if (rawLanguage.IsNullOrWhiteSpace())
+            {
+                return;
+            }
+
+            var language = ParseLanguage(rawLanguage);
+
+            if (IsKnownLanguage(language))
+            {
+                AddKnownLanguage(languages, language);
+                return;
+            }
+
+            languages.DistinctAudioLanguages.Add(rawLanguage.Trim().ToLowerInvariant());
+        }
+
+        private static void AddKnownLanguage(AudioLanguageSet languages, Language language)
+        {
+            if (!IsKnownLanguage(language))
+            {
+                return;
+            }
+
+            languages.KnownLanguages.Add(language);
+            languages.DistinctAudioLanguages.Add($"language:{language.Id}");
+        }
+
+        private static Language ParseLanguage(string rawLanguage)
+        {
+            var trimmedLanguage = rawLanguage.Trim();
+
+            return IsoLanguages.Find(trimmedLanguage)?.Language ??
+                   IsoLanguages.FindByName(trimmedLanguage)?.Language;
+        }
+
+        private static bool IsKnownLanguage(Language language)
+        {
+            return language is { Id: > 0 };
+        }
+
+        private bool HasPreferredDualAudioUpgrade(LocalEpisode localEpisode)
+        {
+            return localEpisode?.Episodes?
+                .Where(episode => episode.EpisodeFileId > 0)
+                .Any(episode =>
+                {
+                    var episodeFile = episode.EpisodeFile?.Value;
+                    var dualAudioPreference = _dualAudioImportPreference.Evaluate(localEpisode, episodeFile);
+
+                    return dualAudioPreference?.IsPreferredUpgrade == true;
+                }) == true;
         }
 
         private bool ValidatePath(TrackedDownload trackedDownload)
@@ -1049,6 +1259,12 @@ namespace NzbDrone.Core.Download
         {
             public string Path { get; set; }
             public SubtitleTitleInfo Info { get; set; }
+        }
+
+        private class AudioLanguageSet
+        {
+            public HashSet<Language> KnownLanguages { get; } = new HashSet<Language>();
+            public HashSet<string> DistinctAudioLanguages { get; } = new HashSet<string>();
         }
     }
 }

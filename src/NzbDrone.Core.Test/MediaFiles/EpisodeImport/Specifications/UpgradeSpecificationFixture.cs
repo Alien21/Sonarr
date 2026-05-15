@@ -9,6 +9,7 @@ using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Languages;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MediaFiles.EpisodeImport;
 using NzbDrone.Core.MediaFiles.EpisodeImport.Specifications;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Profiles;
@@ -564,6 +565,84 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport.Specifications
                 .ToList();
 
             Subject.IsSatisfiedBy(_localEpisode, null).Accepted.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_return_true_if_preferred_dual_audio_upgrade_has_lower_custom_format_score()
+        {
+            var episodeFileCustomFormats = Builder<CustomFormat>.CreateListOfSize(1).Build().ToList();
+
+            var episodeFile = new EpisodeFile
+            {
+                Quality = new QualityModel(Quality.Bluray1080p)
+            };
+
+            _series.QualityProfile.Value.FormatItems = episodeFileCustomFormats.Select(c => new ProfileFormatItem
+            {
+                Format = c,
+                Score = 50
+            })
+                .ToList();
+
+            Mocker.GetMock<IConfigService>()
+                .Setup(s => s.DownloadPropersAndRepacks)
+                .Returns(ProperDownloadTypes.DoNotPrefer);
+
+            Mocker.GetMock<ICustomFormatCalculationService>()
+                .Setup(s => s.ParseCustomFormat(episodeFile))
+                .Returns(episodeFileCustomFormats);
+
+            Mocker.GetMock<IDualAudioImportPreference>()
+                .Setup(s => s.Evaluate(_localEpisode, episodeFile))
+                .Returns(new DualAudioImportPreferenceResult
+                {
+                    Applies = true,
+                    IsPreferredUpgrade = true
+                });
+
+            _localEpisode.Quality = new QualityModel(Quality.Bluray1080p);
+            _localEpisode.CustomFormats = Builder<CustomFormat>.CreateListOfSize(1).Build().ToList();
+            _localEpisode.CustomFormatScore = 20;
+
+            _localEpisode.Episodes = Builder<Episode>.CreateListOfSize(1)
+                .All()
+                .With(e => e.EpisodeFileId = 1)
+                .With(e => e.EpisodeFile = new LazyLoaded<EpisodeFile>(episodeFile))
+                .Build()
+                .ToList();
+
+            Subject.IsSatisfiedBy(_localEpisode, null).Accepted.Should().BeTrue();
+        }
+
+        [Test]
+        public void should_return_false_if_preferred_dual_audio_upgrade_requires_manual_review()
+        {
+            var episodeFile = new EpisodeFile
+            {
+                Quality = new QualityModel(Quality.Bluray1080p)
+            };
+
+            Mocker.GetMock<IDualAudioImportPreference>()
+                .Setup(s => s.Evaluate(_localEpisode, episodeFile))
+                .Returns(new DualAudioImportPreferenceResult
+                {
+                    Applies = true,
+                    RequiresManualReview = true,
+                    ManualReviewReason = "Dual-audio candidate requires manual review."
+                });
+
+            _localEpisode.Quality = new QualityModel(Quality.Bluray1080p);
+            _localEpisode.Episodes = Builder<Episode>.CreateListOfSize(1)
+                .All()
+                .With(e => e.EpisodeFileId = 1)
+                .With(e => e.EpisodeFile = new LazyLoaded<EpisodeFile>(episodeFile))
+                .Build()
+                .ToList();
+
+            var result = Subject.IsSatisfiedBy(_localEpisode, null);
+
+            result.Accepted.Should().BeFalse();
+            result.Reason.Should().Be(ImportRejectionReason.DualAudioUpgradeManualReview);
         }
     }
 }
