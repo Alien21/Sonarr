@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
+using Newtonsoft.Json;
 using NLog;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.Extensions;
@@ -16,6 +18,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
     public interface IFetchSeriesTranslations
     {
         List<SeriesTranslation> GetTranslations(int tvdbId, Language language);
+        List<int> SearchSeries(string title, Language language);
     }
 
     public class TvdbSeriesTranslationProxy : IFetchSeriesTranslations
@@ -24,6 +27,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
         private readonly IConfigService _configService;
         private readonly ICached<string> _tokenCache;
         private readonly ICached<List<SeriesTranslation>> _cache;
+        private readonly ICached<List<int>> _searchCache;
         private readonly Logger _logger;
 
         public TvdbSeriesTranslationProxy(IHttpClient httpClient,
@@ -35,6 +39,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             _configService = configService;
             _tokenCache = cacheManager.GetCache<string>(GetType(), "token");
             _cache = cacheManager.GetCache<List<SeriesTranslation>>(GetType(), "translations");
+            _searchCache = cacheManager.GetCache<List<int>>(GetType(), "search");
             _logger = logger;
         }
 
@@ -48,6 +53,18 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             }
 
             return _cache.Get($"{tvdbId}-{isoLanguage.ThreeLetterCode}", () => FetchTranslation(tvdbId, isoLanguage.ThreeLetterCode), TimeSpan.FromHours(12));
+        }
+
+        public List<int> SearchSeries(string title, Language language)
+        {
+            var isoLanguage = IsoLanguages.Get(language);
+
+            if (title.IsNullOrWhiteSpace() || isoLanguage == null)
+            {
+                return new List<int>();
+            }
+
+            return _searchCache.Get($"{isoLanguage.ThreeLetterCode}-{title.ToLowerInvariant()}", () => FetchSearch(title, isoLanguage.ThreeLetterCode), TimeSpan.FromHours(12));
         }
 
         private List<SeriesTranslation> FetchTranslation(int tvdbId, string languageCode)
@@ -99,6 +116,42 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             };
         }
 
+        private List<int> FetchSearch(string title, string languageCode)
+        {
+            var token = GetToken();
+
+            if (token.IsNullOrWhiteSpace())
+            {
+                return new List<int>();
+            }
+
+            var response = GetSearchResponse(title, languageCode, token);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                _tokenCache.Remove("token");
+                token = GetToken();
+
+                if (token.IsNotNullOrWhiteSpace())
+                {
+                    response = GetSearchResponse(title, languageCode, token);
+                }
+            }
+
+            if (response.HasHttpError)
+            {
+                _logger.Debug("Unable to search TheTVDB for series title {0} language {1}: HTTP {2}", title, languageCode, response.StatusCode);
+                return new List<int>();
+            }
+
+            return response.Resource?.Data?
+                .Where(r => r.Type.IsNullOrWhiteSpace() || r.Type.Equals("series", StringComparison.InvariantCultureIgnoreCase))
+                .Select(r => int.TryParse(r.TvdbId, out var tvdbId) ? tvdbId : 0)
+                .Where(tvdbId => tvdbId > 0)
+                .Distinct()
+                .ToList() ?? new List<int>();
+        }
+
         private HttpResponse<TvdbApiResponse<TvdbTranslationResource>> GetTranslationResponse(int tvdbId, string languageCode, string token)
         {
             var request = new HttpRequestBuilder("https://api4.thetvdb.com/v4/")
@@ -110,6 +163,22 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             request.SuppressHttpError = true;
 
             return _httpClient.Get<TvdbApiResponse<TvdbTranslationResource>>(request);
+        }
+
+        private HttpResponse<TvdbApiResponse<List<TvdbSearchResource>>> GetSearchResponse(string title, string languageCode, string token)
+        {
+            var request = new HttpRequestBuilder("https://api4.thetvdb.com/v4/")
+                .Resource("search")
+                .AddQueryParam("query", title)
+                .AddQueryParam("type", "series")
+                .AddQueryParam("language", languageCode)
+                .Accept(HttpAccept.Json)
+                .SetHeader("Authorization", $"Bearer {token}")
+                .Build();
+
+            request.SuppressHttpError = true;
+
+            return _httpClient.Get<TvdbApiResponse<List<TvdbSearchResource>>>(request);
         }
 
         private string GetToken()
@@ -181,6 +250,14 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             public string Name { get; set; }
             public string Overview { get; set; }
             public string Language { get; set; }
+        }
+
+        public class TvdbSearchResource
+        {
+            [JsonProperty("tvdb_id")]
+            public string TvdbId { get; set; }
+
+            public string Type { get; set; }
         }
     }
 }

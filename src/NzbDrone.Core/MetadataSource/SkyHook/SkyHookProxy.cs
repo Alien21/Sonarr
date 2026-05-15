@@ -151,7 +151,10 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
 
                 var httpResponse = _httpClient.Get<List<ShowResource>>(httpRequest);
 
-                return httpResponse.Resource.SelectList(MapSearchResult);
+                var results = httpResponse.Resource.SelectList(MapSearchResult);
+                AddSeriesInfoLanguageSearchResults(results, searchTerm);
+
+                return results;
             }
             catch (HttpException ex)
             {
@@ -168,6 +171,69 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
                 _logger.Warn(ex);
                 throw new SkyHookException("Search for '{0}' failed. Invalid response received from SkyHook. {1}", ex, title, ex.Message);
             }
+        }
+
+        private void AddSeriesInfoLanguageSearchResults(List<Series> results, string searchTerm)
+        {
+            var language = GetSeriesInfoSearchLanguage();
+
+            if (language == Language.English || IsIdSearch(searchTerm))
+            {
+                return;
+            }
+
+            try
+            {
+                var existingTvdbIds = results.Select(s => s.TvdbId).ToHashSet();
+
+                foreach (var tvdbId in _seriesTranslationProxy.SearchSeries(searchTerm, language))
+                {
+                    if (!existingTvdbIds.Add(tvdbId))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        var existingSeries = _seriesService.FindByTvdbId(tvdbId);
+                        results.Add(existingSeries ?? GetSeriesInfo(tvdbId).Item1);
+                    }
+                    catch (SeriesNotFoundException)
+                    {
+                        _logger.Debug("Unable to add localized TheTVDB search result for tvdbid {0}: series was not found in SkyHook.", tvdbId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Debug(ex, "Unable to add localized TheTVDB search result for tvdbid {0}.", tvdbId);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "Unable to search TheTVDB with configured series info language.");
+            }
+        }
+
+        private static bool IsIdSearch(string searchTerm)
+        {
+            var lowerSearchTerm = searchTerm.ToLowerInvariant();
+
+            return lowerSearchTerm.StartsWith("imdb:") ||
+                   lowerSearchTerm.StartsWith("tmdb:") ||
+                   lowerSearchTerm.StartsWith("anilist:") ||
+                   lowerSearchTerm.StartsWith("mal:");
+        }
+
+        private Language GetSeriesInfoSearchLanguage()
+        {
+            if (!_configService.UseSeriesInfoLanguage)
+            {
+                return Language.English;
+            }
+
+            var language = (Language)_configService.SeriesInfoLanguage;
+
+            return language == Language.Original ? Language.English : language;
         }
 
         private Series MapSearchResult(ShowResource show)
