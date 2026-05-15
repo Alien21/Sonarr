@@ -1,3 +1,4 @@
+import jdu from 'jdu';
 import { throttle } from 'lodash';
 import React, {
   useCallback,
@@ -52,6 +53,14 @@ const columns = [
 ];
 
 const bodyPadding = parseInt(dimensions.pageContentBodyPadding);
+
+function normalizeSeriesFilterValue(value: string | undefined | null) {
+  return jdu
+    .replace(value ?? '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+    .trim();
+}
 
 function getSeriesSearchValues(series: Series) {
   return [
@@ -179,16 +188,22 @@ function SelectSeriesModalContent(props: SelectSeriesModalContentProps) {
   );
 
   const items = useMemo(() => {
-    const filterValue = filter.toLowerCase();
+    const filterValue = normalizeSeriesFilterValue(filter);
+    const idFilterValue = filter.trim().toLowerCase();
 
-    return sortedSeries.filter(
-      (item) =>
+    if (!filterValue && !idFilterValue) {
+      return sortedSeries;
+    }
+
+    return sortedSeries.filter((item) => {
+      return (
         getSeriesSearchValues(item).some((value) =>
-          value.toLowerCase().includes(filterValue)
+          normalizeSeriesFilterValue(value).includes(filterValue)
         ) ||
-        item.tvdbId.toString().includes(filter) ||
-        item.imdbId?.toLowerCase().includes(filterValue)
-    );
+        item.tvdbId.toString().includes(idFilterValue) ||
+        item.imdbId?.toLowerCase().includes(idFilterValue)
+      );
+    });
   }, [sortedSeries, filter]);
 
   return (
