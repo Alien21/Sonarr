@@ -53,6 +53,14 @@ const columns = [
 
 const bodyPadding = parseInt(dimensions.pageContentBodyPadding);
 
+function getSeriesSearchValues(series: Series) {
+  return [
+    series.title,
+    series.defaultTitle,
+    ...(series.alternateTitles ?? []).map(({ title }) => title),
+  ].filter((value): value is string => !!value);
+}
+
 interface SelectSeriesModalContentProps {
   modalTitle: string;
   onSeriesSelect(series: Series): void;
@@ -170,16 +178,18 @@ function SelectSeriesModalContent(props: SelectSeriesModalContentProps) {
     [allSeries]
   );
 
-  const items = useMemo(
-    () =>
-      sortedSeries.filter(
-        (item) =>
-          item.title.toLowerCase().includes(filter.toLowerCase()) ||
-          item.tvdbId.toString().includes(filter) ||
-          item.imdbId?.includes(filter)
-      ),
-    [sortedSeries, filter]
-  );
+  const items = useMemo(() => {
+    const filterValue = filter.toLowerCase();
+
+    return sortedSeries.filter(
+      (item) =>
+        getSeriesSearchValues(item).some((value) =>
+          value.toLowerCase().includes(filterValue)
+        ) ||
+        item.tvdbId.toString().includes(filter) ||
+        item.imdbId?.toLowerCase().includes(filterValue)
+    );
+  }, [sortedSeries, filter]);
 
   return (
     <ModalContent onModalClose={onModalClose}>
