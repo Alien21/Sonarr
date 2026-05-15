@@ -18,6 +18,7 @@ import { icons, kinds, tooltipPositions } from 'Helpers/Props';
 import SelectEpisodeModal from 'InteractiveImport/Episode/SelectEpisodeModal';
 import { SelectedEpisode } from 'InteractiveImport/Episode/SelectEpisodeModalContent';
 import SelectIndexerFlagsModal from 'InteractiveImport/IndexerFlags/SelectIndexerFlagsModal';
+import { ExistingEpisodeFile } from 'InteractiveImport/InteractiveImport';
 import SelectLanguageModal from 'InteractiveImport/Language/SelectLanguageModal';
 import SelectQualityModal from 'InteractiveImport/Quality/SelectQualityModal';
 import SelectReleaseGroupModal from 'InteractiveImport/ReleaseGroup/SelectReleaseGroupModal';
@@ -84,6 +85,10 @@ function getLanguagePriority(language: Language, seriesInfoLanguage: number) {
   return 2;
 }
 
+function getFileName(relativePath: string) {
+  return relativePath.split(/[\\/]/).pop() ?? relativePath;
+}
+
 interface InteractiveImportRowProps {
   id: number;
   allowSeriesChange: boolean;
@@ -91,6 +96,7 @@ interface InteractiveImportRowProps {
   series?: Series;
   seasonNumber?: number;
   episodes?: Episode[];
+  existingEpisodeFiles?: ExistingEpisodeFile[];
   releaseGroup?: string;
   quality?: QualityModel;
   languages?: Language[];
@@ -118,6 +124,7 @@ function InteractiveImportRow(props: InteractiveImportRowProps) {
     series,
     seasonNumber,
     episodes = [],
+    existingEpisodeFiles = [],
     quality,
     languages,
     subtitleLanguages = [],
@@ -433,6 +440,24 @@ function InteractiveImportRow(props: InteractiveImportRowProps) {
     () => sortLanguagesByPreference(subtitleLanguages, seriesInfoLanguage),
     [subtitleLanguages, seriesInfoLanguage]
   );
+  const existingFileDetails = useMemo(
+    () =>
+      existingEpisodeFiles.map((existingFile) => {
+        return {
+          ...existingFile,
+          fileName: getFileName(existingFile.relativePath),
+          sortedLanguages: sortLanguagesByPreference(
+            existingFile.languages,
+            seriesInfoLanguage
+          ),
+          sortedSubtitleLanguages: sortLanguagesByPreference(
+            existingFile.subtitleLanguages,
+            seriesInfoLanguage
+          ),
+        };
+      }),
+    [existingEpisodeFiles, seriesInfoLanguage]
+  );
 
   return (
     <TableRow>
@@ -444,6 +469,18 @@ function InteractiveImportRow(props: InteractiveImportRowProps) {
 
       <TableRowCell className={styles.relativePath} title={relativePath}>
         {relativePath}
+
+        {existingFileDetails.map((existingFile) => {
+          return (
+            <div
+              key={existingFile.id}
+              className={styles.existingFileRelativePath}
+              title={existingFile.relativePath}
+            >
+              {existingFile.fileName}
+            </div>
+          );
+        })}
       </TableRowCell>
 
       {isSeriesColumnVisible ? (
@@ -515,6 +552,17 @@ function InteractiveImportRow(props: InteractiveImportRowProps) {
         {!showQualityPlaceholder && !!quality && (
           <EpisodeQuality className={styles.label} quality={quality} />
         )}
+
+        {existingFileDetails.map((existingFile) => {
+          return (
+            <div key={existingFile.id} className={styles.existingFileValue}>
+              <EpisodeQuality
+                className={styles.existingFileLabel}
+                quality={existingFile.quality}
+              />
+            </div>
+          );
+        })}
       </TableRowCellButton>
 
       <TableRowCellButton
@@ -530,13 +578,45 @@ function InteractiveImportRow(props: InteractiveImportRowProps) {
             languages={sortedLanguages}
           />
         )}
+
+        {existingFileDetails.map((existingFile) => {
+          return (
+            <div key={existingFile.id} className={styles.existingFileValue}>
+              <EpisodeLanguages
+                className={styles.existingFileLabel}
+                languages={existingFile.sortedLanguages}
+              />
+            </div>
+          );
+        })}
       </TableRowCellButton>
 
       <TableRowCell className={styles.languages}>
         <EpisodeLanguages languages={sortedSubtitleLanguages} />
+
+        {existingFileDetails.map((existingFile) => {
+          return (
+            <div key={existingFile.id} className={styles.existingFileValue}>
+              <EpisodeLanguages
+                className={styles.existingFileLabel}
+                languages={existingFile.sortedSubtitleLanguages}
+              />
+            </div>
+          );
+        })}
       </TableRowCell>
 
-      <TableRowCell>{formatBytes(size)}</TableRowCell>
+      <TableRowCell>
+        {formatBytes(size)}
+
+        {existingFileDetails.map((existingFile) => {
+          return (
+            <div key={existingFile.id} className={styles.existingFileValue}>
+              {formatBytes(existingFile.size)}
+            </div>
+          );
+        })}
+      </TableRowCell>
 
       <TableRowCellButton
         title={translate('ClickToChangeReleaseType')}

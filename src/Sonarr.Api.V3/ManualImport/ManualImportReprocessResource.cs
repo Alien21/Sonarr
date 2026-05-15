@@ -15,6 +15,7 @@ namespace Sonarr.Api.V3.ManualImport
         public int? SeasonNumber { get; set; }
         public List<EpisodeResource> Episodes { get; set; }
         public List<int> EpisodeIds { get; set; }
+        public List<ManualImportExistingEpisodeFileResource> ExistingEpisodeFiles { get; set; }
         public QualityModel Quality { get; set; }
         public bool? QualityManuallySelected { get; set; }
         public List<Language> Languages { get; set; }

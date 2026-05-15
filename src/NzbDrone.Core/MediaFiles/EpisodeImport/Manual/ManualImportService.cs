@@ -501,6 +501,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
             item.Rejections = decision.Rejections;
             item.IndexerFlags = (int)decision.LocalEpisode.IndexerFlags;
             item.ReleaseType = decision.LocalEpisode.ReleaseType;
+            item.ExistingEpisodeFiles = GetExistingEpisodeFiles(decision.LocalEpisode);
 
             if (decision.LocalEpisode.Series != null)
             {
@@ -511,6 +512,71 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
             }
 
             return item;
+        }
+
+        private List<ManualImportExistingEpisodeFile> GetExistingEpisodeFiles(LocalEpisode localEpisode)
+        {
+            if (localEpisode?.Series == null || localEpisode.Episodes == null)
+            {
+                return new List<ManualImportExistingEpisodeFile>();
+            }
+
+            return GetEpisodesWithExistingFiles(localEpisode)
+                .Where(episode => episode.EpisodeFileId > 0)
+                .Select(episode => episode.EpisodeFile?.Value)
+                .Where(episodeFile => episodeFile != null)
+                .GroupBy(episodeFile => episodeFile.Id)
+                .Select(group => MapExistingEpisodeFile(group.First(), localEpisode.Series))
+                .ToList();
+        }
+
+        private List<Episode> GetEpisodesWithExistingFiles(LocalEpisode localEpisode)
+        {
+            var episodeIds = localEpisode.Episodes
+                .Where(episode => episode.Id > 0)
+                .Select(episode => episode.Id)
+                .Distinct()
+                .ToList();
+
+            if (episodeIds.Any())
+            {
+                return _episodeService.GetEpisodes(episodeIds);
+            }
+
+            return localEpisode.Episodes
+                .Select(episode => _episodeService.FindEpisode(localEpisode.Series.Id, episode.SeasonNumber, episode.EpisodeNumber))
+                .Where(episode => episode != null)
+                .ToList();
+        }
+
+        private ManualImportExistingEpisodeFile MapExistingEpisodeFile(EpisodeFile episodeFile, Series series)
+        {
+            var path = GetEpisodeFilePath(episodeFile, series);
+
+            return new ManualImportExistingEpisodeFile
+            {
+                Id = episodeFile.Id,
+                RelativePath = episodeFile.RelativePath,
+                Size = episodeFile.Size,
+                Quality = episodeFile.Quality,
+                Languages = PrioritizeLanguages(episodeFile.Languages),
+                SubtitleLanguages = GetSubtitleLanguages(new LocalEpisode
+                {
+                    Path = path,
+                    FileEpisodeInfo = Parser.Parser.ParsePath(path, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne),
+                    MediaInfo = episodeFile.MediaInfo
+                })
+            };
+        }
+
+        private string GetEpisodeFilePath(EpisodeFile episodeFile, Series series)
+        {
+            if (episodeFile.RelativePath.IsNotNullOrWhiteSpace() && series.Path.IsNotNullOrWhiteSpace())
+            {
+                return Path.Combine(series.Path, episodeFile.RelativePath);
+            }
+
+            return episodeFile.Path;
         }
 
         private ManualImportItem MapItem(EpisodeFile episodeFile, Series series, string folderName, List<Episode> episodes)

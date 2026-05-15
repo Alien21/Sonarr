@@ -47,6 +47,7 @@ namespace Sonarr.Api.V3.ManualImport
 
                 item.SeasonNumber = processedItem.SeasonNumber;
                 item.Episodes = processedItem.Episodes.ToResource();
+                item.ExistingEpisodeFiles = processedItem.ExistingEpisodeFiles.ToResource();
                 item.ReleaseType = processedItem.ReleaseType;
                 item.IndexerFlags = processedItem.IndexerFlags;
                 item.SubtitleLanguages = processedItem.SubtitleLanguages;

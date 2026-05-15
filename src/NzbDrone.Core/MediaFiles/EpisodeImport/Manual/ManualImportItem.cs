@@ -18,6 +18,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
         public int? SeasonNumber { get; set; }
         public List<Episode> Episodes { get; set; }
         public int? EpisodeFileId { get; set; }
+        public List<ManualImportExistingEpisodeFile> ExistingEpisodeFiles { get; set; }
         public QualityModel Quality { get; set; }
         public List<Language> Languages { get; set; }
         public List<Language> SubtitleLanguages { get; set; }
@@ -33,6 +34,17 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
         {
             CustomFormats = new List<CustomFormat>();
             SubtitleLanguages = new List<Language>();
+            ExistingEpisodeFiles = new List<ManualImportExistingEpisodeFile>();
         }
+    }
+
+    public class ManualImportExistingEpisodeFile
+    {
+        public int Id { get; set; }
+        public string RelativePath { get; set; }
+        public long Size { get; set; }
+        public QualityModel Quality { get; set; }
+        public List<Language> Languages { get; set; }
+        public List<Language> SubtitleLanguages { get; set; }
     }
 }

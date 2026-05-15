@@ -25,6 +25,7 @@ namespace Sonarr.Api.V3.ManualImport
         public int? SeasonNumber { get; set; }
         public List<EpisodeResource> Episodes { get; set; }
         public int? EpisodeFileId { get; set; }
+        public List<ManualImportExistingEpisodeFileResource> ExistingEpisodeFiles { get; set; }
         public string ReleaseGroup { get; set; }
         public QualityModel Quality { get; set; }
         public List<Language> Languages { get; set; }
@@ -62,6 +63,7 @@ namespace Sonarr.Api.V3.ManualImport
                 SeasonNumber = model.SeasonNumber,
                 Episodes = model.Episodes.ToResource(),
                 EpisodeFileId = model.EpisodeFileId,
+                ExistingEpisodeFiles = model.ExistingEpisodeFiles.ToResource(),
                 ReleaseGroup = model.ReleaseGroup,
                 Quality = model.Quality,
                 Languages = model.Languages,
@@ -80,6 +82,46 @@ namespace Sonarr.Api.V3.ManualImport
         public static List<ManualImportResource> ToResource(this IEnumerable<ManualImportItem> models, ISeriesResourceService seriesResourceService)
         {
             return models.Select(m => ToResource(m, seriesResourceService)).ToList();
+        }
+    }
+
+    public class ManualImportExistingEpisodeFileResource : RestResource
+    {
+        public string RelativePath { get; set; }
+        public long Size { get; set; }
+        public QualityModel Quality { get; set; }
+        public List<Language> Languages { get; set; }
+        public List<Language> SubtitleLanguages { get; set; }
+    }
+
+    public static class ManualImportExistingEpisodeFileResourceMapper
+    {
+        public static ManualImportExistingEpisodeFileResource ToResource(this ManualImportExistingEpisodeFile model)
+        {
+            if (model == null)
+            {
+                return null;
+            }
+
+            return new ManualImportExistingEpisodeFileResource
+            {
+                Id = model.Id,
+                RelativePath = model.RelativePath,
+                Size = model.Size,
+                Quality = model.Quality,
+                Languages = model.Languages,
+                SubtitleLanguages = model.SubtitleLanguages
+            };
+        }
+
+        public static List<ManualImportExistingEpisodeFileResource> ToResource(this IEnumerable<ManualImportExistingEpisodeFile> models)
+        {
+            if (models == null)
+            {
+                return null;
+            }
+
+            return models.Select(ToResource).ToList();
         }
     }
 
