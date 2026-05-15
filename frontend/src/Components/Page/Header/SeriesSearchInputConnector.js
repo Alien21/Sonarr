@@ -14,6 +14,7 @@ function createCleanSeriesSelector() {
       return allSeries.map((series) => {
         const {
           title,
+          defaultTitle,
           titleSlug,
           sortTitle,
           images,
@@ -27,6 +28,7 @@ function createCleanSeriesSelector() {
 
         return {
           title,
+          defaultTitle,
           titleSlug,
           sortTitle,
           images,

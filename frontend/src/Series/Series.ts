@@ -69,6 +69,7 @@ interface Series extends ModelBase {
   alternateTitles: AlternateTitle[];
   certification: string;
   cleanTitle: string;
+  defaultTitle: string;
   ended: boolean;
   firstAired: string;
   genres: string[];

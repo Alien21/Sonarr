@@ -9,6 +9,7 @@ function SeriesSearchResult(props) {
   const {
     match,
     title,
+    defaultTitle,
     images,
     alternateTitles,
     tvdbId,
@@ -46,6 +47,14 @@ function SeriesSearchResult(props) {
           alternateTitle ?
             <div className={styles.alternateTitle}>
               {alternateTitle.title}
+            </div> :
+            null
+        }
+
+        {
+          match.key === 'defaultTitle' && defaultTitle ?
+            <div className={styles.alternateTitle}>
+              {defaultTitle}
             </div> :
             null
         }
@@ -101,6 +110,7 @@ function SeriesSearchResult(props) {
 
 SeriesSearchResult.propTypes = {
   title: PropTypes.string.isRequired,
+  defaultTitle: PropTypes.string,
   images: PropTypes.arrayOf(PropTypes.object).isRequired,
   alternateTitles: PropTypes.arrayOf(PropTypes.object).isRequired,
   tvdbId: PropTypes.number,

@@ -9,6 +9,7 @@ const fuseOptions = {
   minMatchCharLength: 1,
   keys: [
     'title',
+    'defaultTitle',
     'alternateTitles.title',
     'tvdbId',
     'tvMazeId',
@@ -25,7 +26,10 @@ function getSuggestions(series, value) {
   if (value.length === 1) {
     for (let i = 0; i < series.length; i++) {
       const s = series[i];
-      if (s.firstCharacter === value.toLowerCase()) {
+      if (
+        s.firstCharacter === value.toLowerCase() ||
+        s.defaultTitle?.charAt(0).toLowerCase() === value.toLowerCase()
+      ) {
         suggestions.push({
           item: series[i],
           indices: [
