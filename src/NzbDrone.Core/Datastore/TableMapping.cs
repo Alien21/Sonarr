@@ -40,6 +40,7 @@ using NzbDrone.Core.RootFolders;
 using NzbDrone.Core.Tags;
 using NzbDrone.Core.ThingiProvider;
 using NzbDrone.Core.Tv;
+using NzbDrone.Core.Tv.Translations;
 using NzbDrone.Core.Update.History;
 using static Dapper.SqlMapper;
 
@@ -115,7 +116,10 @@ namespace NzbDrone.Core.Datastore
 
             Mapper.Entity<Series>("Series").RegisterModel()
                   .Ignore(s => s.RootFolderPath)
+                  .Ignore(s => s.Translations)
                   .HasOne(s => s.QualityProfile, s => s.QualityProfileId);
+
+            Mapper.Entity<SeriesTranslation>("SeriesTranslations").RegisterModel();
 
             Mapper.Entity<EpisodeFile>("EpisodeFiles").RegisterModel()
                   .HasOne(f => f.Series, f => f.SeriesId)

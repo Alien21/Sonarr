@@ -14,12 +14,17 @@ namespace Sonarr.Api.V3.Series
     public class SeriesEditorController : Controller
     {
         private readonly ISeriesService _seriesService;
+        private readonly ISeriesResourceService _seriesResourceService;
         private readonly IManageCommandQueue _commandQueueManager;
         private readonly SeriesEditorValidator _seriesEditorValidator;
 
-        public SeriesEditorController(ISeriesService seriesService, IManageCommandQueue commandQueueManager, SeriesEditorValidator seriesEditorValidator)
+        public SeriesEditorController(ISeriesService seriesService,
+                                      ISeriesResourceService seriesResourceService,
+                                      IManageCommandQueue commandQueueManager,
+                                      SeriesEditorValidator seriesEditorValidator)
         {
             _seriesService = seriesService;
+            _seriesResourceService = seriesResourceService;
             _commandQueueManager = commandQueueManager;
             _seriesEditorValidator = seriesEditorValidator;
         }
@@ -103,7 +108,7 @@ namespace Sonarr.Api.V3.Series
                 });
             }
 
-            return Accepted(_seriesService.UpdateSeries(seriesToUpdate, !resource.MoveFiles).ToResource());
+            return Accepted(_seriesResourceService.ToResource(_seriesService.UpdateSeries(seriesToUpdate, !resource.MoveFiles)));
         }
 
         [HttpDelete]

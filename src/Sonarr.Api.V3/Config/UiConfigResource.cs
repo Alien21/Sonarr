@@ -18,6 +18,7 @@ namespace Sonarr.Api.V3.Config
         public bool EnableColorImpairedMode { get; set; }
         public string Theme { get; set; }
         public int UILanguage { get; set; }
+        public int SeriesInfoLanguage { get; set; }
     }
 
     public static class UiConfigResourceMapper
@@ -36,7 +37,8 @@ namespace Sonarr.Api.V3.Config
 
                 EnableColorImpairedMode = model.EnableColorImpairedMode,
                 Theme = config.Theme,
-                UILanguage = model.UILanguage
+                UILanguage = model.UILanguage,
+                SeriesInfoLanguage = model.SeriesInfoLanguage
             };
         }
     }

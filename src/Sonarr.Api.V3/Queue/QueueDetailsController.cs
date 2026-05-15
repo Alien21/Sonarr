@@ -7,6 +7,7 @@ using NzbDrone.Core.Download.Pending;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Queue;
 using NzbDrone.SignalR;
+using Sonarr.Api.V3.Series;
 using Sonarr.Http;
 using Sonarr.Http.REST;
 
@@ -18,12 +19,17 @@ namespace Sonarr.Api.V3.Queue
     {
         private readonly IQueueService _queueService;
         private readonly IPendingReleaseService _pendingReleaseService;
+        private readonly ISeriesResourceService _seriesResourceService;
 
-        public QueueDetailsController(IBroadcastSignalRMessage broadcastSignalRMessage, IQueueService queueService, IPendingReleaseService pendingReleaseService)
+        public QueueDetailsController(IBroadcastSignalRMessage broadcastSignalRMessage,
+                                      IQueueService queueService,
+                                      IPendingReleaseService pendingReleaseService,
+                                      ISeriesResourceService seriesResourceService)
             : base(broadcastSignalRMessage)
         {
             _queueService = queueService;
             _pendingReleaseService = pendingReleaseService;
+            _seriesResourceService = seriesResourceService;
         }
 
         [NonAction]
@@ -47,15 +53,15 @@ namespace Sonarr.Api.V3.Queue
 
             if (seriesId.HasValue)
             {
-                return fullQueue.Where(q => q.Series?.Id == seriesId).ToResource(includeSeries, includeEpisode);
+                return fullQueue.Where(q => q.Series?.Id == seriesId).ToResource(includeSeries, includeEpisode, _seriesResourceService);
             }
 
             if (episodeIds.Any())
             {
-                return fullQueue.Where(q => q.Episode != null && episodeIds.Contains(q.Episode.Id)).ToResource(includeSeries, includeEpisode);
+                return fullQueue.Where(q => q.Episode != null && episodeIds.Contains(q.Episode.Id)).ToResource(includeSeries, includeEpisode, _seriesResourceService);
             }
 
-            return fullQueue.ToResource(includeSeries, includeEpisode);
+            return fullQueue.ToResource(includeSeries, includeEpisode, _seriesResourceService);
         }
 
         [NonAction]

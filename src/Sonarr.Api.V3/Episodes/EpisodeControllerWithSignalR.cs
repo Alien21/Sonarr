@@ -23,11 +23,13 @@ namespace Sonarr.Api.V3.Episodes
         protected readonly ISeriesService _seriesService;
         protected readonly IUpgradableSpecification _upgradableSpecification;
         protected readonly ICustomFormatCalculationService _formatCalculator;
+        protected readonly ISeriesResourceService _seriesResourceService;
 
         protected EpisodeControllerWithSignalR(IEpisodeService episodeService,
                                            ISeriesService seriesService,
                                            IUpgradableSpecification upgradableSpecification,
                                            ICustomFormatCalculationService formatCalculator,
+                                           ISeriesResourceService seriesResourceService,
                                            IBroadcastSignalRMessage signalRBroadcaster)
             : base(signalRBroadcaster)
         {
@@ -35,12 +37,14 @@ namespace Sonarr.Api.V3.Episodes
             _seriesService = seriesService;
             _upgradableSpecification = upgradableSpecification;
             _formatCalculator = formatCalculator;
+            _seriesResourceService = seriesResourceService;
         }
 
         protected EpisodeControllerWithSignalR(IEpisodeService episodeService,
                                            ISeriesService seriesService,
                                            IUpgradableSpecification upgradableSpecification,
                                            ICustomFormatCalculationService formatCalculator,
+                                           ISeriesResourceService seriesResourceService,
                                            IBroadcastSignalRMessage signalRBroadcaster,
                                            string resource)
             : base(signalRBroadcaster)
@@ -49,6 +53,7 @@ namespace Sonarr.Api.V3.Episodes
             _seriesService = seriesService;
             _upgradableSpecification = upgradableSpecification;
             _formatCalculator = formatCalculator;
+            _seriesResourceService = seriesResourceService;
         }
 
         protected override EpisodeResource GetResourceById(int id)
@@ -68,7 +73,7 @@ namespace Sonarr.Api.V3.Episodes
 
                 if (includeSeries)
                 {
-                    resource.Series = series.ToResource();
+                    resource.Series = _seriesResourceService.ToResource(series);
                 }
 
                 if (includeEpisodeFile && episode.EpisodeFileId != 0)
@@ -102,7 +107,7 @@ namespace Sonarr.Api.V3.Episodes
 
                     if (includeSeries)
                     {
-                        resource.Series = series.ToResource();
+                        resource.Series = _seriesResourceService.ToResource(series);
                     }
 
                     if (includeEpisodeFile && episode.EpisodeFileId != 0)

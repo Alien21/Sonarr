@@ -28,7 +28,7 @@ namespace Sonarr.Api.V3.Blocklist
 
     public static class BlocklistResourceMapper
     {
-        public static BlocklistResource MapToResource(this NzbDrone.Core.Blocklisting.Blocklist model, ICustomFormatCalculationService formatCalculator)
+        public static BlocklistResource MapToResource(this NzbDrone.Core.Blocklisting.Blocklist model, ICustomFormatCalculationService formatCalculator, ISeriesResourceService seriesResourceService)
         {
             if (model == null)
             {
@@ -50,7 +50,7 @@ namespace Sonarr.Api.V3.Blocklist
                 Indexer = model.Indexer,
                 Message = model.Message,
 
-                Series = model.Series.ToResource()
+                Series = seriesResourceService.ToResource(model.Series)
             };
         }
     }

@@ -9,10 +9,13 @@ namespace Sonarr.Api.V3.Series
     public class SeriesImportController : Controller
     {
         private readonly IAddSeriesService _addSeriesService;
+        private readonly ISeriesResourceService _seriesResourceService;
 
-        public SeriesImportController(IAddSeriesService addSeriesService)
+        public SeriesImportController(IAddSeriesService addSeriesService,
+                                      ISeriesResourceService seriesResourceService)
         {
             _addSeriesService = addSeriesService;
+            _seriesResourceService = seriesResourceService;
         }
 
         [HttpPost]
@@ -20,7 +23,7 @@ namespace Sonarr.Api.V3.Series
         {
             var newSeries = resource.ToModel();
 
-            return _addSeriesService.AddSeries(newSeries).ToResource();
+            return _seriesResourceService.ToResource(_addSeriesService.AddSeries(newSeries));
         }
     }
 }

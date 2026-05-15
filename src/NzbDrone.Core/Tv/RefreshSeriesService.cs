@@ -15,6 +15,7 @@ using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Tv.Commands;
 using NzbDrone.Core.Tv.Events;
+using NzbDrone.Core.Tv.Translations;
 
 namespace NzbDrone.Core.Tv
 {
@@ -28,6 +29,7 @@ namespace NzbDrone.Core.Tv
         private readonly ICheckIfSeriesShouldBeRefreshed _checkIfSeriesShouldBeRefreshed;
         private readonly IConfigService _configService;
         private readonly IAutoTaggingService _autoTaggingService;
+        private readonly ISeriesTranslationService _seriesTranslationService;
         private readonly Logger _logger;
 
         public RefreshSeriesService(IProvideSeriesInfo seriesInfo,
@@ -38,6 +40,7 @@ namespace NzbDrone.Core.Tv
                                     ICheckIfSeriesShouldBeRefreshed checkIfSeriesShouldBeRefreshed,
                                     IConfigService configService,
                                     IAutoTaggingService autoTaggingService,
+                                    ISeriesTranslationService seriesTranslationService,
                                     Logger logger)
         {
             _seriesInfo = seriesInfo;
@@ -48,6 +51,7 @@ namespace NzbDrone.Core.Tv
             _checkIfSeriesShouldBeRefreshed = checkIfSeriesShouldBeRefreshed;
             _configService = configService;
             _autoTaggingService = autoTaggingService;
+            _seriesTranslationService = seriesTranslationService;
             _logger = logger;
         }
 
@@ -126,6 +130,12 @@ namespace NzbDrone.Core.Tv
             series.Seasons = UpdateSeasons(series, seriesInfo);
 
             _seriesService.UpdateSeries(series, publishUpdatedEvent: false);
+
+            if (_configService.UseSeriesInfoLanguage)
+            {
+                _seriesTranslationService.UpdateTranslations(seriesInfo.Translations, series);
+            }
+
             _refreshEpisodeService.RefreshEpisodeInfo(series, episodes);
 
             _logger.Debug("Finished series refresh for {0}", series.Title);

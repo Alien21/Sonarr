@@ -15,12 +15,17 @@ namespace Sonarr.Api.V3.Series
         private readonly ISearchForNewSeries _searchProxy;
         private readonly IBuildFileNames _fileNameBuilder;
         private readonly IMapCoversToLocal _coverMapper;
+        private readonly ISeriesResourceService _seriesResourceService;
 
-        public SeriesLookupController(ISearchForNewSeries searchProxy, IBuildFileNames fileNameBuilder, IMapCoversToLocal coverMapper)
+        public SeriesLookupController(ISearchForNewSeries searchProxy,
+                                      IBuildFileNames fileNameBuilder,
+                                      IMapCoversToLocal coverMapper,
+                                      ISeriesResourceService seriesResourceService)
         {
             _searchProxy = searchProxy;
             _fileNameBuilder = fileNameBuilder;
             _coverMapper = coverMapper;
+            _seriesResourceService = seriesResourceService;
         }
 
         [HttpGet]
@@ -34,7 +39,7 @@ namespace Sonarr.Api.V3.Series
         {
             foreach (var currentSeries in series)
             {
-                var resource = currentSeries.ToResource();
+                var resource = _seriesResourceService.ToResource(currentSeries);
 
                 _coverMapper.ConvertToLocalUrls(resource.Id, resource.Images);
 

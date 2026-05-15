@@ -68,6 +68,7 @@ namespace NzbDrone.Core.Configuration
         bool ShowRelativeDates { get; set; }
         bool EnableColorImpairedMode { get; set; }
         int UILanguage { get; set; }
+        int SeriesInfoLanguage { get; set; }
 
         // Internal
         bool CleanupMetadataImages { get; set; }
@@ -82,6 +83,8 @@ namespace NzbDrone.Core.Configuration
         // Extensions
         bool ParseTvdbIdFromReleaseName { get; }
         bool BlockAutoImportForExistingEpisodeFiles { get; }
+        bool UseSeriesInfoLanguage { get; }
+        string TheTvdbApiKey { get; }
 
         // Proxy
         bool ProxyEnabled { get; }

@@ -9,6 +9,7 @@ using NzbDrone.Core.Tags;
 using NzbDrone.Core.Tv;
 using NzbDrone.SignalR;
 using Sonarr.Api.V3.Episodes;
+using Sonarr.Api.V3.Series;
 using Sonarr.Http;
 
 namespace Sonarr.Api.V3.Calendar
@@ -23,8 +24,9 @@ namespace Sonarr.Api.V3.Calendar
                             ISeriesService seriesService,
                             IUpgradableSpecification qualityUpgradableSpecification,
                             ITagService tagService,
-                            ICustomFormatCalculationService formatCalculator)
-            : base(episodeService, seriesService, qualityUpgradableSpecification, formatCalculator, signalR)
+                            ICustomFormatCalculationService formatCalculator,
+                            ISeriesResourceService seriesResourceService)
+            : base(episodeService, seriesService, qualityUpgradableSpecification, formatCalculator, seriesResourceService, signalR)
         {
             _tagService = tagService;
         }

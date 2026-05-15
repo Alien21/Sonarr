@@ -6,6 +6,7 @@ using NzbDrone.Core.AutoTagging;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Tv.Events;
+using NzbDrone.Core.Tv.Translations;
 
 namespace NzbDrone.Core.Tv
 {
@@ -124,13 +125,13 @@ namespace NzbDrone.Core.Tv
 
             // build ordered list of series by position in the search string
             var query =
-                list.Select(series => new
+                list.SelectMany(series => GetSeriesCleanTitles(series).Select(cleanTitleMatch => new
                 {
-                    position = cleanTitle.IndexOf(series.CleanTitle),
-                    length = series.CleanTitle.Length,
+                    position = cleanTitle.IndexOf(cleanTitleMatch),
+                    length = cleanTitleMatch.Length,
                     series = series
-                })
-                    .Where(s => (s.position >= 0))
+                }))
+                    .Where(s => s.position >= 0)
                     .ToList()
                     .OrderBy(s => s.position)
                     .ThenByDescending(s => s.length)
@@ -147,6 +148,22 @@ namespace NzbDrone.Core.Tv
             }
 
             return match;
+        }
+
+        private static IEnumerable<string> GetSeriesCleanTitles(Series series)
+        {
+            if (series.CleanTitle.IsNotNullOrWhiteSpace())
+            {
+                yield return series.CleanTitle;
+            }
+
+            foreach (var translation in series.Translations ?? Enumerable.Empty<SeriesTranslation>())
+            {
+                if (translation.CleanTitle.IsNotNullOrWhiteSpace())
+                {
+                    yield return translation.CleanTitle;
+                }
+            }
         }
 
         public Series FindByPath(string path)

@@ -5,6 +5,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Languages;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.Tv;
+using NzbDrone.Core.Tv.Translations;
 using Sonarr.Http.REST;
 
 namespace Sonarr.Api.V3.Series
@@ -17,6 +18,7 @@ namespace Sonarr.Api.V3.Series
 
         // View Only
         public string Title { get; set; }
+        public string DefaultTitle { get; set; }
         public List<AlternateTitleResource> AlternateTitles { get; set; }
         public string SortTitle { get; set; }
 
@@ -79,26 +81,35 @@ namespace Sonarr.Api.V3.Series
     {
         public static SeriesResource ToResource(this NzbDrone.Core.Tv.Series model, bool includeSeasonImages = false)
         {
+            return ToResource(model, null, includeSeasonImages);
+        }
+
+        public static SeriesResource ToResource(this NzbDrone.Core.Tv.Series model, SeriesTranslation seriesTranslation, bool includeSeasonImages = false)
+        {
             if (model == null)
             {
                 return null;
             }
 
+            var translatedTitle = seriesTranslation?.Title ?? model.Title;
+            var translatedOverview = seriesTranslation?.Overview ?? model.Overview;
+
             return new SeriesResource
                    {
                        Id = model.Id,
 
-                       Title = model.Title,
+                       Title = translatedTitle,
+                       DefaultTitle = model.Title,
 
                        // AlternateTitles
-                       SortTitle = model.SortTitle,
+                       SortTitle = SeriesTitleNormalizer.Normalize(translatedTitle, model.TvdbId),
 
                        // TotalEpisodeCount
                        // EpisodeCount
                        // EpisodeFileCount
                        // SizeOnDisk
                        Status = model.Status,
-                       Overview = model.Overview,
+                       Overview = translatedOverview,
 
                        // NextAiring
                        // PreviousAiring

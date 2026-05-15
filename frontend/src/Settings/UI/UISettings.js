@@ -216,6 +216,25 @@ class UISettings extends Component {
 
                 <FieldSet legend={translate('Language')}>
                   <FormGroup>
+                    <FormLabel>{translate('SeriesInfoLanguage')}</FormLabel>
+                    <FormInputGroup
+                      type={inputTypes.LANGUAGE_SELECT}
+                      name="seriesInfoLanguage"
+                      helpText={translate('SeriesInfoLanguageHelpText')}
+                      helpTextWarning={translate('SeriesInfoLanguageHelpTextWarning')}
+                      onChange={onInputChange}
+                      {...settings.seriesInfoLanguage}
+                      errors={
+                        languages.some((language) => language.key === settings.seriesInfoLanguage.value) ?
+                          settings.seriesInfoLanguage.errors :
+                          [
+                            ...settings.seriesInfoLanguage.errors,
+                            { message: translate('InvalidSeriesInfoLanguage') }
+                          ]}
+                    />
+                  </FormGroup>
+
+                  <FormGroup>
                     <FormLabel>{translate('UiLanguage')}</FormLabel>
                     <FormInputGroup
                       type={inputTypes.LANGUAGE_SELECT}

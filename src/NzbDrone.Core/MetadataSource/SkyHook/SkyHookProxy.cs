@@ -8,6 +8,7 @@ using NLog;
 using NzbDrone.Common.Cloud;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.DataAugmentation.DailySeries;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Languages;
@@ -15,6 +16,7 @@ using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource.SkyHook.Resource;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Tv;
+using NzbDrone.Core.Tv.Translations;
 
 namespace NzbDrone.Core.MetadataSource.SkyHook
 {
@@ -25,11 +27,15 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
         private readonly ISeriesService _seriesService;
         private readonly IDailySeriesService _dailySeriesService;
         private readonly IHttpRequestBuilderFactory _requestBuilder;
+        private readonly IConfigService _configService;
+        private readonly IFetchSeriesTranslations _seriesTranslationProxy;
 
         public SkyHookProxy(IHttpClient httpClient,
                             ISonarrCloudRequestBuilder requestBuilder,
                             ISeriesService seriesService,
                             IDailySeriesService dailySeriesService,
+                            IConfigService configService,
+                            IFetchSeriesTranslations seriesTranslationProxy,
                             Logger logger)
         {
             _httpClient = httpClient;
@@ -37,7 +43,8 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             _logger = logger;
             _seriesService = seriesService;
             _dailySeriesService = dailySeriesService;
-            _requestBuilder = requestBuilder.SkyHookTvdb;
+            _configService = configService;
+            _seriesTranslationProxy = seriesTranslationProxy;
         }
 
         public Tuple<Series, List<Episode>> GetSeriesInfo(int tvdbSeriesId)
@@ -249,9 +256,29 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             series.Actors = show.Actors.Select(MapActors).ToList();
             series.Seasons = show.Seasons.Select(MapSeason).ToList();
             series.Images = show.Images.Select(MapImage).ToList();
+
+            var seriesInfoLanguage = GetSeriesInfoLanguage(series);
+            series.Translations = seriesInfoLanguage == Language.English ? new List<SeriesTranslation>() : _seriesTranslationProxy.GetTranslations(series.TvdbId, seriesInfoLanguage);
             series.Monitored = true;
 
             return series;
+        }
+
+        private Language GetSeriesInfoLanguage(Series series)
+        {
+            if (!_configService.UseSeriesInfoLanguage)
+            {
+                return Language.English;
+            }
+
+            var language = (Language)_configService.SeriesInfoLanguage;
+
+            if (language == Language.Original)
+            {
+                return series.OriginalLanguage;
+            }
+
+            return language;
         }
 
         private static Actor MapActors(ActorResource arg)

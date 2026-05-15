@@ -29,6 +29,18 @@ namespace Sonarr.Api.V3.Config
             SharedValidator.RuleFor(c => c.UILanguage)
                            .GreaterThanOrEqualTo(1)
                            .WithMessage("The UI Language value cannot be less than 1");
+
+            SharedValidator.RuleFor(c => c.SeriesInfoLanguage).Custom((value, context) =>
+            {
+                if (!Language.All.Any(o => o.Id == value))
+                {
+                    context.AddFailure("Invalid Series Info Language value");
+                }
+            });
+
+            SharedValidator.RuleFor(c => c.SeriesInfoLanguage)
+                           .GreaterThanOrEqualTo(1)
+                           .WithMessage("The Series Info Language value cannot be less than 1");
         }
 
         [RestPutById]

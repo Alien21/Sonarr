@@ -360,6 +360,13 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("UILanguage", value); }
         }
 
+        public int SeriesInfoLanguage
+        {
+            get { return GetValueInt("SeriesInfoLanguage", (int)Language.English); }
+
+            set { SetValue("SeriesInfoLanguage", value); }
+        }
+
         public bool CleanupMetadataImages
         {
             get { return GetValueBoolean("CleanupMetadataImages", true); }
@@ -380,6 +387,10 @@ namespace NzbDrone.Core.Configuration
         public bool ParseTvdbIdFromReleaseName => GetValueBoolean("ParseTvdbIdFromReleaseName", false);
 
         public bool BlockAutoImportForExistingEpisodeFiles => GetValueBoolean("BlockAutoImportForExistingEpisodeFiles", false);
+
+        public bool UseSeriesInfoLanguage => GetValueBoolean("UseSeriesInfoLanguage", false);
+
+        public string TheTvdbApiKey => GetValue("TheTvdbApiKey", string.Empty);
 
         public bool ProxyEnabled => GetValueBoolean("ProxyEnabled", false);
 

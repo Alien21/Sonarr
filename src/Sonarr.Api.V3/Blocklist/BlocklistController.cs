@@ -6,6 +6,7 @@ using NzbDrone.Core.Blocklisting;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Indexers;
+using Sonarr.Api.V3.Series;
 using Sonarr.Http;
 using Sonarr.Http.Extensions;
 using Sonarr.Http.REST.Attributes;
@@ -17,12 +18,15 @@ namespace Sonarr.Api.V3.Blocklist
     {
         private readonly IBlocklistService _blocklistService;
         private readonly ICustomFormatCalculationService _formatCalculator;
+        private readonly ISeriesResourceService _seriesResourceService;
 
         public BlocklistController(IBlocklistService blocklistService,
-                                   ICustomFormatCalculationService formatCalculator)
+                                   ICustomFormatCalculationService formatCalculator,
+                                   ISeriesResourceService seriesResourceService)
         {
             _blocklistService = blocklistService;
             _formatCalculator = formatCalculator;
+            _seriesResourceService = seriesResourceService;
         }
 
         [HttpGet]
@@ -51,7 +55,7 @@ namespace Sonarr.Api.V3.Blocklist
                 pagingSpec.FilterExpressions.Add(b => protocols.Contains(b.Protocol));
             }
 
-            return pagingSpec.ApplyToPage(b => _blocklistService.Paged(pagingSpec), b => BlocklistResourceMapper.MapToResource(b, _formatCalculator));
+            return pagingSpec.ApplyToPage(b => _blocklistService.Paged(pagingSpec), b => BlocklistResourceMapper.MapToResource(b, _formatCalculator, _seriesResourceService));
         }
 
         [RestDeleteById]

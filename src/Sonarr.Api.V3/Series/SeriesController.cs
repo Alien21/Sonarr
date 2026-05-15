@@ -38,6 +38,7 @@ namespace Sonarr.Api.V3.Series
                                 IHandle<MediaCoversUpdatedEvent>
     {
         private readonly ISeriesService _seriesService;
+        private readonly ISeriesResourceService _seriesResourceService;
         private readonly IAddSeriesService _addSeriesService;
         private readonly ISeriesStatisticsService _seriesStatisticsService;
         private readonly ISceneMappingService _sceneMappingService;
@@ -47,6 +48,7 @@ namespace Sonarr.Api.V3.Series
 
         public SeriesController(IBroadcastSignalRMessage signalRBroadcaster,
                             ISeriesService seriesService,
+                            ISeriesResourceService seriesResourceService,
                             IAddSeriesService addSeriesService,
                             ISeriesStatisticsService seriesStatisticsService,
                             ISceneMappingService sceneMappingService,
@@ -65,6 +67,7 @@ namespace Sonarr.Api.V3.Series
             : base(signalRBroadcaster)
         {
             _seriesService = seriesService;
+            _seriesResourceService = seriesResourceService;
             _addSeriesService = addSeriesService;
             _seriesStatisticsService = seriesStatisticsService;
             _sceneMappingService = sceneMappingService;
@@ -114,11 +117,11 @@ namespace Sonarr.Api.V3.Series
 
             if (tvdbId.HasValue)
             {
-                seriesResources.AddIfNotNull(_seriesService.FindByTvdbId(tvdbId.Value).ToResource(includeSeasonImages));
+                seriesResources.AddIfNotNull(_seriesResourceService.ToResource(_seriesService.FindByTvdbId(tvdbId.Value), includeSeasonImages));
             }
             else
             {
-                seriesResources.AddRange(_seriesService.GetAllSeries().Select(s => s.ToResource(includeSeasonImages)));
+                seriesResources.AddRange(_seriesResourceService.ToResource(_seriesService.GetAllSeries(), includeSeasonImages));
             }
 
             MapCoversToLocal(seriesResources.ToArray());
@@ -217,7 +220,7 @@ namespace Sonarr.Api.V3.Series
                 return null;
             }
 
-            var resource = series.ToResource(includeSeasonImages);
+            var resource = _seriesResourceService.ToResource(series, includeSeasonImages);
             MapCoversToLocal(resource);
             FetchAndLinkSeriesStatistics(resource);
             PopulateAlternateTitles(resource);

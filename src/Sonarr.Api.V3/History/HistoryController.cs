@@ -24,18 +24,21 @@ namespace Sonarr.Api.V3.History
         private readonly IUpgradableSpecification _upgradableSpecification;
         private readonly IFailedDownloadService _failedDownloadService;
         private readonly ISeriesService _seriesService;
+        private readonly ISeriesResourceService _seriesResourceService;
 
         public HistoryController(IHistoryService historyService,
                              ICustomFormatCalculationService formatCalculator,
                              IUpgradableSpecification upgradableSpecification,
                              IFailedDownloadService failedDownloadService,
-                             ISeriesService seriesService)
+                             ISeriesService seriesService,
+                             ISeriesResourceService seriesResourceService)
         {
             _historyService = historyService;
             _formatCalculator = formatCalculator;
             _upgradableSpecification = upgradableSpecification;
             _failedDownloadService = failedDownloadService;
             _seriesService = seriesService;
+            _seriesResourceService = seriesResourceService;
         }
 
         protected HistoryResource MapToResource(EpisodeHistory model, bool includeSeries, bool includeEpisode)
@@ -44,7 +47,7 @@ namespace Sonarr.Api.V3.History
 
             if (includeSeries)
             {
-                resource.Series = model.Series.ToResource();
+                resource.Series = _seriesResourceService.ToResource(model.Series);
             }
 
             if (includeEpisode)

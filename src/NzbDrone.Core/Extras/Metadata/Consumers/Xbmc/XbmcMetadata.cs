@@ -13,11 +13,13 @@ using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Serializer;
 using NzbDrone.Core.Extras.Metadata.Files;
+using NzbDrone.Core.Languages;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.MediaInfo;
 using NzbDrone.Core.Tags;
 using NzbDrone.Core.Tv;
+using NzbDrone.Core.Tv.Translations;
 
 namespace NzbDrone.Core.Extras.Metadata.Consumers.Xbmc
 {
@@ -28,11 +30,13 @@ namespace NzbDrone.Core.Extras.Metadata.Consumers.Xbmc
         private readonly ITagRepository _tagRepo;
         private readonly IDetectXbmcNfo _detectNfo;
         private readonly IDiskProvider _diskProvider;
+        private readonly ISeriesTranslationService _seriesTranslationService;
 
         public XbmcMetadata(IDetectXbmcNfo detectNfo,
                             IDiskProvider diskProvider,
                             IMapCoversToLocal mediaCoverService,
                             ITagRepository tagRepo,
+                            ISeriesTranslationService seriesTranslationService,
                             Logger logger)
         {
             _logger = logger;
@@ -40,6 +44,7 @@ namespace NzbDrone.Core.Extras.Metadata.Consumers.Xbmc
             _tagRepo = tagRepo;
             _diskProvider = diskProvider;
             _detectNfo = detectNfo;
+            _seriesTranslationService = seriesTranslationService;
         }
 
         private static readonly Regex SeriesImagesRegex = new Regex(@"^(?<type>poster|banner|fanart)\.(?:png|jpg)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -152,15 +157,24 @@ namespace NzbDrone.Core.Extras.Metadata.Consumers.Xbmc
                 _logger.Debug("Generating Series Metadata for: {0}", series.Title);
 
                 var tvShow = new XElement("tvshow");
+                var seriesTranslation = GetSeriesTranslation(series);
+                var metadataTitle = seriesTranslation?.Title.IsNotNullOrWhiteSpace() == true ? seriesTranslation.Title : series.Title;
+                var metadataOverview = seriesTranslation?.Overview.IsNotNullOrWhiteSpace() == true ? seriesTranslation.Overview : series.Overview;
 
-                tvShow.Add(new XElement("title", series.Title));
+                tvShow.Add(new XElement("title", metadataTitle));
+
+                if (seriesTranslation?.Title.IsNotNullOrWhiteSpace() == true && metadataTitle != series.Title)
+                {
+                    tvShow.Add(new XElement("originaltitle", series.Title));
+                    tvShow.Add(new XElement("sorttitle", Parser.Parser.NormalizeTitle(metadataTitle)));
+                }
 
                 if (series.Ratings != null && series.Ratings.Votes > 0)
                 {
                     tvShow.Add(new XElement("rating", series.Ratings.Value));
                 }
 
-                tvShow.Add(new XElement("plot", series.Overview));
+                tvShow.Add(new XElement("plot", metadataOverview));
                 tvShow.Add(new XElement("mpaa", series.Certification));
                 tvShow.Add(new XElement("id", series.TvdbId));
 
@@ -273,6 +287,22 @@ namespace NzbDrone.Core.Extras.Metadata.Consumers.Xbmc
             }
 
             return xmlResult.IsNullOrWhiteSpace() ? null : new MetadataFileResult("tvshow.nfo", xmlResult);
+        }
+
+        private SeriesTranslation GetSeriesTranslation(Series series)
+        {
+            var seriesMetadataLanguage = Settings.SeriesMetadataLanguage == (int)Language.Original ?
+                series.OriginalLanguage?.Id ?? Language.English.Id :
+                Settings.SeriesMetadataLanguage;
+
+            var selectedSettingsLanguage = Language.FindById(seriesMetadataLanguage);
+
+            if (selectedSettingsLanguage == Language.English)
+            {
+                return null;
+            }
+
+            return _seriesTranslationService.GetAllTranslationsForSeries(series.Id).FirstOrDefault(t => t.Language == selectedSettingsLanguage);
         }
 
         public override MetadataFileResult EpisodeMetadata(Series series, EpisodeFile episodeFile)

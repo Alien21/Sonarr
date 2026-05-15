@@ -16,6 +16,7 @@ using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Queue;
 using NzbDrone.SignalR;
+using Sonarr.Api.V3.Series;
 using Sonarr.Http;
 using Sonarr.Http.Extensions;
 using Sonarr.Http.REST;
@@ -36,6 +37,7 @@ namespace Sonarr.Api.V3.Queue
         private readonly IIgnoredDownloadService _ignoredDownloadService;
         private readonly IProvideDownloadClient _downloadClientProvider;
         private readonly IBlocklistService _blocklistService;
+        private readonly ISeriesResourceService _seriesResourceService;
 
         public QueueController(IBroadcastSignalRMessage broadcastSignalRMessage,
                            IQueueService queueService,
@@ -45,7 +47,8 @@ namespace Sonarr.Api.V3.Queue
                            IFailedDownloadService failedDownloadService,
                            IIgnoredDownloadService ignoredDownloadService,
                            IProvideDownloadClient downloadClientProvider,
-                           IBlocklistService blocklistService)
+                           IBlocklistService blocklistService,
+                           ISeriesResourceService seriesResourceService)
             : base(broadcastSignalRMessage)
         {
             _queueService = queueService;
@@ -55,6 +58,7 @@ namespace Sonarr.Api.V3.Queue
             _ignoredDownloadService = ignoredDownloadService;
             _downloadClientProvider = downloadClientProvider;
             _blocklistService = blocklistService;
+            _seriesResourceService = seriesResourceService;
 
             _qualityComparer = new QualityModelComparer(qualityProfileService.GetDefaultProfile(string.Empty));
         }
@@ -390,7 +394,7 @@ namespace Sonarr.Api.V3.Queue
 
         private QueueResource MapToResource(NzbDrone.Core.Queue.Queue queueItem, bool includeSeries, bool includeEpisode)
         {
-            return queueItem.ToResource(includeSeries, includeEpisode);
+            return queueItem.ToResource(includeSeries, includeEpisode, _seriesResourceService);
         }
 
         [NonAction]

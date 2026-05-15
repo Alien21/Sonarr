@@ -1,5 +1,6 @@
 using FluentValidation;
 using NzbDrone.Core.Annotations;
+using NzbDrone.Core.Languages;
 using NzbDrone.Core.ThingiProvider;
 using NzbDrone.Core.Validation;
 
@@ -16,6 +17,7 @@ namespace NzbDrone.Core.Extras.Metadata.Consumers.Xbmc
         public XbmcMetadataSettings()
         {
             SeriesMetadata = true;
+            SeriesMetadataLanguage = (int)Language.English;
             SeriesMetadataEpisodeGuide = false;
             SeriesMetadataUrl = false;
             EpisodeMetadata = true;
@@ -27,25 +29,28 @@ namespace NzbDrone.Core.Extras.Metadata.Consumers.Xbmc
         [FieldDefinition(0, Label = "MetadataSettingsSeriesMetadata", Type = FieldType.Checkbox, Section = MetadataSectionType.Metadata, HelpText = "MetadataXmbcSettingsSeriesMetadataHelpText")]
         public bool SeriesMetadata { get; set; }
 
-        [FieldDefinition(1, Label = "MetadataSettingsSeriesMetadataEpisodeGuide", Type = FieldType.Checkbox, Section = MetadataSectionType.Metadata, HelpText = "MetadataXmbcSettingsSeriesMetadataEpisodeGuideHelpText", Advanced = true)]
+        [FieldDefinition(1, Label = "MetadataSettingsSeriesMetadataLanguage", Type = FieldType.Select, SelectOptions = typeof(RealLanguageFieldConverter), Section = MetadataSectionType.Metadata, HelpText = "MetadataXmbcSettingsSeriesMetadataLanguageHelpText")]
+        public int SeriesMetadataLanguage { get; set; }
+
+        [FieldDefinition(2, Label = "MetadataSettingsSeriesMetadataEpisodeGuide", Type = FieldType.Checkbox, Section = MetadataSectionType.Metadata, HelpText = "MetadataXmbcSettingsSeriesMetadataEpisodeGuideHelpText", Advanced = true)]
         public bool SeriesMetadataEpisodeGuide { get; set; }
 
-        [FieldDefinition(2, Label = "MetadataSettingsSeriesMetadataUrl", Type = FieldType.Checkbox, Section = MetadataSectionType.Metadata, HelpText = "MetadataXmbcSettingsSeriesMetadataUrlHelpText", Advanced = true)]
+        [FieldDefinition(3, Label = "MetadataSettingsSeriesMetadataUrl", Type = FieldType.Checkbox, Section = MetadataSectionType.Metadata, HelpText = "MetadataXmbcSettingsSeriesMetadataUrlHelpText", Advanced = true)]
         public bool SeriesMetadataUrl { get; set; }
 
-        [FieldDefinition(3, Label = "MetadataSettingsEpisodeMetadata", Type = FieldType.Checkbox, Section = MetadataSectionType.Metadata, HelpText = "<filename>.nfo")]
+        [FieldDefinition(4, Label = "MetadataSettingsEpisodeMetadata", Type = FieldType.Checkbox, Section = MetadataSectionType.Metadata, HelpText = "<filename>.nfo")]
         public bool EpisodeMetadata { get; set; }
 
-        [FieldDefinition(4, Label = "MetadataSettingsEpisodeMetadataImageThumbs", Type = FieldType.Checkbox, Section = MetadataSectionType.Image, HelpText = "MetadataXmbcSettingsEpisodeMetadataImageThumbsHelpText", Advanced = true)]
+        [FieldDefinition(5, Label = "MetadataSettingsEpisodeMetadataImageThumbs", Type = FieldType.Checkbox, Section = MetadataSectionType.Image, HelpText = "MetadataXmbcSettingsEpisodeMetadataImageThumbsHelpText", Advanced = true)]
         public bool EpisodeImageThumb { get; set; }
 
-        [FieldDefinition(5, Label = "MetadataSettingsSeriesImages", Type = FieldType.Checkbox, Section = MetadataSectionType.Image, HelpText = "fanart.jpg, poster.jpg, banner.jpg")]
+        [FieldDefinition(6, Label = "MetadataSettingsSeriesImages", Type = FieldType.Checkbox, Section = MetadataSectionType.Image, HelpText = "fanart.jpg, poster.jpg, banner.jpg")]
         public bool SeriesImages { get; set; }
 
-        [FieldDefinition(6, Label = "MetadataSettingsSeasonImages", Type = FieldType.Checkbox, Section = MetadataSectionType.Image, HelpText = "season##-poster.jpg, season##-banner.jpg, season-specials-poster.jpg, season-specials-banner.jpg")]
+        [FieldDefinition(7, Label = "MetadataSettingsSeasonImages", Type = FieldType.Checkbox, Section = MetadataSectionType.Image, HelpText = "season##-poster.jpg, season##-banner.jpg, season-specials-poster.jpg, season-specials-banner.jpg")]
         public bool SeasonImages { get; set; }
 
-        [FieldDefinition(7, Label = "MetadataSettingsEpisodeImages", Type = FieldType.Checkbox, Section = MetadataSectionType.Image, HelpText = "<filename>-thumb.jpg")]
+        [FieldDefinition(8, Label = "MetadataSettingsEpisodeImages", Type = FieldType.Checkbox, Section = MetadataSectionType.Image, HelpText = "<filename>-thumb.jpg")]
         public bool EpisodeImages { get; set; }
 
         public bool IsValid => true;

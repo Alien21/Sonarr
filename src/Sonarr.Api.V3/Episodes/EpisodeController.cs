@@ -5,6 +5,7 @@ using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.Tv;
 using NzbDrone.SignalR;
+using Sonarr.Api.V3.Series;
 using Sonarr.Http;
 using Sonarr.Http.REST;
 using Sonarr.Http.REST.Attributes;
@@ -18,8 +19,9 @@ namespace Sonarr.Api.V3.Episodes
                              IEpisodeService episodeService,
                              IUpgradableSpecification upgradableSpecification,
                              ICustomFormatCalculationService formatCalculator,
+                             ISeriesResourceService seriesResourceService,
                              IBroadcastSignalRMessage signalRBroadcaster)
-            : base(episodeService, seriesService, upgradableSpecification, formatCalculator, signalRBroadcaster)
+            : base(episodeService, seriesService, upgradableSpecification, formatCalculator, seriesResourceService, signalRBroadcaster)
         {
         }
 

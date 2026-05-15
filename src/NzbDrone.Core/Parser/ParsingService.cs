@@ -9,6 +9,7 @@ using NzbDrone.Core.DataAugmentation.Scene;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Tv;
+using NzbDrone.Core.Tv.Translations;
 
 namespace NzbDrone.Core.Parser
 {
@@ -406,7 +407,7 @@ namespace NzbDrone.Core.Parser
 
             if (searchCriteria != null)
             {
-                if (searchCriteria.Series.CleanTitle == parsedEpisodeInfo.SeriesTitle.CleanSeriesTitle())
+                if (SeriesTitleMatchesSearchCriteria(parsedEpisodeInfo.SeriesTitle, searchCriteria.Series))
                 {
                     return new FindSeriesResult(searchCriteria.Series, SeriesMatchType.Title);
                 }
@@ -526,6 +527,29 @@ namespace NzbDrone.Core.Parser
             }
 
             return new FindSeriesResult(series, matchType);
+        }
+
+        private static bool SeriesTitleMatchesSearchCriteria(string seriesTitle, Series series)
+        {
+            var cleanTitle = seriesTitle.CleanSeriesTitle();
+
+            return GetSeriesCleanTitles(series).Any(t => t == cleanTitle);
+        }
+
+        private static IEnumerable<string> GetSeriesCleanTitles(Series series)
+        {
+            if (series.CleanTitle.IsNotNullOrWhiteSpace())
+            {
+                yield return series.CleanTitle;
+            }
+
+            foreach (var translation in series.Translations ?? Enumerable.Empty<SeriesTranslation>())
+            {
+                if (translation.CleanTitle.IsNotNullOrWhiteSpace())
+                {
+                    yield return translation.CleanTitle;
+                }
+            }
         }
 
         private Episode GetDailyEpisode(Series series, string airDate, int? part, SearchCriteriaBase searchCriteria)

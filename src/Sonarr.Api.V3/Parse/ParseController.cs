@@ -16,14 +16,17 @@ namespace Sonarr.Api.V3.Parse
         private readonly IParsingService _parsingService;
         private readonly IRemoteEpisodeAggregationService _aggregationService;
         private readonly ICustomFormatCalculationService _formatCalculator;
+        private readonly ISeriesResourceService _seriesResourceService;
 
         public ParseController(IParsingService parsingService,
                                IRemoteEpisodeAggregationService aggregationService,
-                               ICustomFormatCalculationService formatCalculator)
+                               ICustomFormatCalculationService formatCalculator,
+                               ISeriesResourceService seriesResourceService)
         {
             _parsingService = parsingService;
             _aggregationService = aggregationService;
             _formatCalculator = formatCalculator;
+            _seriesResourceService = seriesResourceService;
         }
 
         [HttpGet]
@@ -58,7 +61,7 @@ namespace Sonarr.Api.V3.Parse
                 {
                     Title = title,
                     ParsedEpisodeInfo = remoteEpisode.ParsedEpisodeInfo,
-                    Series = remoteEpisode.Series.ToResource(),
+                    Series = _seriesResourceService.ToResource(remoteEpisode.Series),
                     Episodes = remoteEpisode.Episodes.ToResource(),
                     Languages = remoteEpisode.Languages,
                     CustomFormats = remoteEpisode.CustomFormats?.ToResource(false),

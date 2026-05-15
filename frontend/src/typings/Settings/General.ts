@@ -29,7 +29,10 @@ export default interface General {
   updateAutomatically: boolean;
   updateMechanism: UpdateMechanism;
   updateScriptPath: string;
+  parseTvdbIdFromReleaseName: boolean;
   blockAutoImportForExistingEpisodeFiles: boolean;
+  useSeriesInfoLanguage: boolean;
+  theTvdbApiKey: string;
   proxyEnabled: boolean;
   proxyType: string;
   proxyHostname: string;

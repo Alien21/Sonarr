@@ -1,0 +1,186 @@
+using System;
+using System.Collections.Generic;
+using System.Net;
+using NLog;
+using NzbDrone.Common.Cache;
+using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Http;
+using NzbDrone.Common.Serializer;
+using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Languages;
+using NzbDrone.Core.Parser;
+using NzbDrone.Core.Tv.Translations;
+
+namespace NzbDrone.Core.MetadataSource.SkyHook
+{
+    public interface IFetchSeriesTranslations
+    {
+        List<SeriesTranslation> GetTranslations(int tvdbId, Language language);
+    }
+
+    public class TvdbSeriesTranslationProxy : IFetchSeriesTranslations
+    {
+        private readonly IHttpClient _httpClient;
+        private readonly IConfigService _configService;
+        private readonly ICached<string> _tokenCache;
+        private readonly ICached<List<SeriesTranslation>> _cache;
+        private readonly Logger _logger;
+
+        public TvdbSeriesTranslationProxy(IHttpClient httpClient,
+                                          IConfigService configService,
+                                          ICacheManager cacheManager,
+                                          Logger logger)
+        {
+            _httpClient = httpClient;
+            _configService = configService;
+            _tokenCache = cacheManager.GetCache<string>(GetType(), "token");
+            _cache = cacheManager.GetCache<List<SeriesTranslation>>(GetType(), "translations");
+            _logger = logger;
+        }
+
+        public List<SeriesTranslation> GetTranslations(int tvdbId, Language language)
+        {
+            var isoLanguage = IsoLanguages.Get(language);
+
+            if (isoLanguage == null)
+            {
+                return new List<SeriesTranslation>();
+            }
+
+            return _cache.Get($"{tvdbId}-{isoLanguage.ThreeLetterCode}", () => FetchTranslation(tvdbId, isoLanguage.ThreeLetterCode), TimeSpan.FromHours(12));
+        }
+
+        private List<SeriesTranslation> FetchTranslation(int tvdbId, string languageCode)
+        {
+            var token = GetToken();
+
+            if (token.IsNullOrWhiteSpace())
+            {
+                return new List<SeriesTranslation>();
+            }
+
+            var response = GetTranslationResponse(tvdbId, languageCode, token);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                _tokenCache.Remove("token");
+                token = GetToken();
+
+                if (token.IsNotNullOrWhiteSpace())
+                {
+                    response = GetTranslationResponse(tvdbId, languageCode, token);
+                }
+            }
+
+            if (response.HasHttpError)
+            {
+                _logger.Debug("Unable to fetch TheTVDB translation for tvdbid {0} language {1}: HTTP {2}", tvdbId, languageCode, response.StatusCode);
+                return new List<SeriesTranslation>();
+            }
+
+            var translation = response.Resource?.Data;
+
+            if (translation == null || translation.Name.IsNullOrWhiteSpace())
+            {
+                return new List<SeriesTranslation>();
+            }
+
+            var title = WebUtility.HtmlDecode(translation.Name);
+
+            return new List<SeriesTranslation>
+            {
+                new SeriesTranslation
+                {
+                    Title = title,
+                    CleanTitle = Parser.Parser.CleanSeriesTitle(title),
+                    Overview = WebUtility.HtmlDecode(translation.Overview),
+                    Language = IsoLanguages.Find(translation.Language)?.Language
+                }
+            };
+        }
+
+        private HttpResponse<TvdbApiResponse<TvdbTranslationResource>> GetTranslationResponse(int tvdbId, string languageCode, string token)
+        {
+            var request = new HttpRequestBuilder("https://api4.thetvdb.com/v4/")
+                .Resource($"series/{tvdbId}/translations/{languageCode}")
+                .Accept(HttpAccept.Json)
+                .SetHeader("Authorization", $"Bearer {token}")
+                .Build();
+
+            request.SuppressHttpError = true;
+
+            return _httpClient.Get<TvdbApiResponse<TvdbTranslationResource>>(request);
+        }
+
+        private string GetToken()
+        {
+            if (_configService.TheTvdbApiKey.IsNullOrWhiteSpace())
+            {
+                _logger.Debug("TheTVDB API key is not configured, skipping series translations");
+                return null;
+            }
+
+            var token = _tokenCache.Find("token");
+
+            if (token.IsNotNullOrWhiteSpace())
+            {
+                return token;
+            }
+
+            token = Login();
+
+            if (token.IsNotNullOrWhiteSpace())
+            {
+                _tokenCache.Set("token", token, TimeSpan.FromDays(25));
+            }
+
+            return token;
+        }
+
+        private string Login()
+        {
+            var payload = new Dictionary<string, string>
+            {
+                { "apikey", _configService.TheTvdbApiKey }
+            };
+
+            var request = new HttpRequestBuilder("https://api4.thetvdb.com/v4/")
+                .Resource("login")
+                .Accept(HttpAccept.Json)
+                .Post()
+                .Build();
+
+            request.Headers.ContentType = "application/json";
+            request.SuppressHttpError = true;
+            request.SetContent(payload.ToJson());
+
+            var response = _httpClient.Post<TvdbApiResponse<TvdbLoginResource>>(request);
+
+            if (response.HasHttpError || response.Resource?.Data == null || response.Resource.Data.Token.IsNullOrWhiteSpace())
+            {
+                _logger.Warn("Unable to authenticate with TheTVDB API. Check the configured API key.");
+                return null;
+            }
+
+            return response.Resource.Data.Token;
+        }
+
+        public class TvdbApiResponse<T>
+            where T : new()
+        {
+            public T Data { get; set; }
+        }
+
+        public class TvdbLoginResource
+        {
+            public string Token { get; set; }
+        }
+
+        public class TvdbTranslationResource
+        {
+            public string Name { get; set; }
+            public string Overview { get; set; }
+            public string Language { get; set; }
+        }
+    }
+}

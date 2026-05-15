@@ -39,7 +39,7 @@ namespace Sonarr.Api.V3.ManualImport
 
     public static class ManualImportResourceMapper
     {
-        public static ManualImportResource ToResource(this ManualImportItem model)
+        public static ManualImportResource ToResource(this ManualImportItem model, ISeriesResourceService seriesResourceService)
         {
             if (model == null)
             {
@@ -57,7 +57,7 @@ namespace Sonarr.Api.V3.ManualImport
                 FolderName = model.FolderName,
                 Name = model.Name,
                 Size = model.Size,
-                Series = model.Series.ToResource(),
+                Series = seriesResourceService.ToResource(model.Series),
                 SeasonNumber = model.SeasonNumber,
                 Episodes = model.Episodes.ToResource(),
                 EpisodeFileId = model.EpisodeFileId,
@@ -75,9 +75,9 @@ namespace Sonarr.Api.V3.ManualImport
             };
         }
 
-        public static List<ManualImportResource> ToResource(this IEnumerable<ManualImportItem> models)
+        public static List<ManualImportResource> ToResource(this IEnumerable<ManualImportItem> models, ISeriesResourceService seriesResourceService)
         {
-            return models.Select(ToResource).ToList();
+            return models.Select(m => ToResource(m, seriesResourceService)).ToList();
         }
     }
 

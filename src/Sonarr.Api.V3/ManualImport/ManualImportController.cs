@@ -7,6 +7,7 @@ using NzbDrone.Core.MediaFiles.EpisodeImport.Manual;
 using NzbDrone.Core.Qualities;
 using Sonarr.Api.V3.CustomFormats;
 using Sonarr.Api.V3.Episodes;
+using Sonarr.Api.V3.Series;
 using Sonarr.Http;
 
 namespace Sonarr.Api.V3.ManualImport
@@ -15,10 +16,13 @@ namespace Sonarr.Api.V3.ManualImport
     public class ManualImportController : Controller
     {
         private readonly IManualImportService _manualImportService;
+        private readonly ISeriesResourceService _seriesResourceService;
 
-        public ManualImportController(IManualImportService manualImportService)
+        public ManualImportController(IManualImportService manualImportService,
+                                      ISeriesResourceService seriesResourceService)
         {
             _manualImportService = manualImportService;
+            _seriesResourceService = seriesResourceService;
         }
 
         [HttpGet]
@@ -27,10 +31,10 @@ namespace Sonarr.Api.V3.ManualImport
         {
             if (seriesId.HasValue)
             {
-                return _manualImportService.GetMediaFiles(seriesId.Value, seasonNumber).ToResource().Select(AddQualityWeight).ToList();
+                return _manualImportService.GetMediaFiles(seriesId.Value, seasonNumber).ToResource(_seriesResourceService).Select(AddQualityWeight).ToList();
             }
 
-            return _manualImportService.GetMediaFiles(folder, downloadId, seriesId, filterExistingFiles).ToResource().Select(AddQualityWeight).ToList();
+            return _manualImportService.GetMediaFiles(folder, downloadId, seriesId, filterExistingFiles).ToResource(_seriesResourceService).Select(AddQualityWeight).ToList();
         }
 
         [HttpPost]

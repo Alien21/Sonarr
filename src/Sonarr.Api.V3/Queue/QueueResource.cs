@@ -55,7 +55,7 @@ namespace Sonarr.Api.V3.Queue
 
     public static class QueueResourceMapper
     {
-        public static QueueResource ToResource(this NzbDrone.Core.Queue.Queue model, bool includeSeries, bool includeEpisode)
+        public static QueueResource ToResource(this NzbDrone.Core.Queue.Queue model, bool includeSeries, bool includeEpisode, ISeriesResourceService seriesResourceService)
         {
             if (model == null)
             {
@@ -71,7 +71,7 @@ namespace Sonarr.Api.V3.Queue
                 SeriesId = model.Series?.Id,
                 EpisodeId = model.Episode?.Id,
                 SeasonNumber = model.Episode?.SeasonNumber,
-                Series = includeSeries && model.Series != null ? model.Series.ToResource() : null,
+                Series = includeSeries && model.Series != null ? seriesResourceService.ToResource(model.Series) : null,
                 Episode = includeEpisode && model.Episode != null ? model.Episode.ToResource() : null,
                 Languages = model.Languages,
                 Quality = model.Quality,
@@ -106,9 +106,9 @@ namespace Sonarr.Api.V3.Queue
             };
         }
 
-        public static List<QueueResource> ToResource(this IEnumerable<NzbDrone.Core.Queue.Queue> models, bool includeSeries, bool includeEpisode)
+        public static List<QueueResource> ToResource(this IEnumerable<NzbDrone.Core.Queue.Queue> models, bool includeSeries, bool includeEpisode, ISeriesResourceService seriesResourceService)
         {
-            return models.Select((m) => ToResource(m, includeSeries, includeEpisode)).ToList();
+            return models.Select((m) => ToResource(m, includeSeries, includeEpisode, seriesResourceService)).ToList();
         }
     }
 }

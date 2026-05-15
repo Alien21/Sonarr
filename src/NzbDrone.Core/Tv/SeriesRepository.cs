@@ -3,6 +3,7 @@ using System.Linq;
 using Dapper;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.Tv.Translations;
 
 namespace NzbDrone.Core.Tv
 {
@@ -38,7 +39,9 @@ namespace NzbDrone.Core.Tv
             cleanTitle = cleanTitle.ToLowerInvariant();
 
             var series = Query(s => s.CleanTitle == cleanTitle)
-                                        .ToList();
+                .Concat(FindByTranslationTitle(cleanTitle))
+                .DistinctBy(s => s.Id)
+                .ToList();
 
             return ReturnSingleSeriesOrThrow(series);
         }
@@ -47,7 +50,10 @@ namespace NzbDrone.Core.Tv
         {
             cleanTitle = cleanTitle.ToLowerInvariant();
 
-            var series = Query(s => s.CleanTitle == cleanTitle && s.Year == year).ToList();
+            var series = Query(s => s.CleanTitle == cleanTitle && s.Year == year)
+                .Concat(FindByTranslationTitle(cleanTitle, year))
+                .DistinctBy(s => s.Id)
+                .ToList();
 
             return ReturnSingleSeriesOrThrow(series);
         }
@@ -61,7 +67,69 @@ namespace NzbDrone.Core.Tv
                 builder = Builder().Where($"(strpos(@cleanTitle, \"Series\".\"CleanTitle\") > 0)", new { cleanTitle = cleanTitle });
             }
 
-            return Query(builder).ToList();
+            return Query(builder)
+                .Concat(FindByTranslationTitleInexact(cleanTitle))
+                .DistinctBy(s => s.Id)
+                .ToList();
+        }
+
+        private List<Series> FindByTranslationTitle(string cleanTitle, int? year = null)
+        {
+            var seriesDictionary = new Dictionary<int, Series>();
+
+            var builder = Builder()
+                .Join<Series, SeriesTranslation>((s, t) => s.Id == t.SeriesId)
+                .Where<SeriesTranslation>(t => t.CleanTitle == cleanTitle);
+
+            if (year.HasValue)
+            {
+                builder.Where<Series>(s => s.Year == year.Value);
+            }
+
+            _ = _database.QueryJoined<Series, SeriesTranslation>(
+                builder,
+                (series, translation) => Map(seriesDictionary, series, translation));
+
+            return seriesDictionary.Values.ToList();
+        }
+
+        private List<Series> FindByTranslationTitleInexact(string cleanTitle)
+        {
+            var seriesDictionary = new Dictionary<int, Series>();
+
+            var builder = Builder()
+                .Join<Series, SeriesTranslation>((s, t) => s.Id == t.SeriesId)
+                .Where($"instr(@cleanTitle, \"SeriesTranslations\".\"CleanTitle\")", new { cleanTitle = cleanTitle });
+
+            if (_database.DatabaseType == DatabaseType.PostgreSQL)
+            {
+                builder = Builder()
+                    .Join<Series, SeriesTranslation>((s, t) => s.Id == t.SeriesId)
+                    .Where($"(strpos(@cleanTitle, \"SeriesTranslations\".\"CleanTitle\") > 0)", new { cleanTitle = cleanTitle });
+            }
+
+            _ = _database.QueryJoined<Series, SeriesTranslation>(
+                builder,
+                (series, translation) => Map(seriesDictionary, series, translation));
+
+            return seriesDictionary.Values.ToList();
+        }
+
+        private Series Map(Dictionary<int, Series> seriesDictionary, Series series, SeriesTranslation translation)
+        {
+            if (!seriesDictionary.TryGetValue(series.Id, out var seriesEntry))
+            {
+                seriesEntry = series;
+                seriesDictionary.Add(seriesEntry.Id, seriesEntry);
+            }
+
+            if (translation != null)
+            {
+                seriesEntry.Translations ??= new List<SeriesTranslation>();
+                seriesEntry.Translations.Add(translation);
+            }
+
+            return seriesEntry;
         }
 
         public Series FindByTvdbId(int tvdbId)

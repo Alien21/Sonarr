@@ -11,6 +11,7 @@ using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Organizer;
 using NzbDrone.Core.Parser;
+using NzbDrone.Core.Tv.Translations;
 
 namespace NzbDrone.Core.Tv
 {
@@ -26,18 +27,21 @@ namespace NzbDrone.Core.Tv
         private readonly IProvideSeriesInfo _seriesInfo;
         private readonly IBuildFileNames _fileNameBuilder;
         private readonly IAddSeriesValidator _addSeriesValidator;
+        private readonly ISeriesTranslationService _seriesTranslationService;
         private readonly Logger _logger;
 
         public AddSeriesService(ISeriesService seriesService,
                                 IProvideSeriesInfo seriesInfo,
                                 IBuildFileNames fileNameBuilder,
                                 IAddSeriesValidator addSeriesValidator,
+                                ISeriesTranslationService seriesTranslationService,
                                 Logger logger)
         {
             _seriesService = seriesService;
             _seriesInfo = seriesInfo;
             _fileNameBuilder = fileNameBuilder;
             _addSeriesValidator = addSeriesValidator;
+            _seriesTranslationService = seriesTranslationService;
             _logger = logger;
         }
 
@@ -50,6 +54,7 @@ namespace NzbDrone.Core.Tv
 
             _logger.Info("Adding Series {0} Path: [{1}]", newSeries, newSeries.Path);
             _seriesService.AddSeries(newSeries);
+            _seriesTranslationService.UpdateTranslations(newSeries.Translations, newSeries);
 
             return newSeries;
         }
@@ -108,7 +113,14 @@ namespace NzbDrone.Core.Tv
                 }
             }
 
-            return _seriesService.AddSeries(seriesToAdd);
+            var addedSeries = _seriesService.AddSeries(seriesToAdd);
+
+            foreach (var series in addedSeries)
+            {
+                _seriesTranslationService.UpdateTranslations(series.Translations, series);
+            }
+
+            return addedSeries;
         }
 
         private Series AddSkyhookData(Series newSeries)

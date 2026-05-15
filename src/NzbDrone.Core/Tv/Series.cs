@@ -4,6 +4,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Languages;
 using NzbDrone.Core.Profiles.Qualities;
+using NzbDrone.Core.Tv.Translations;
 
 namespace NzbDrone.Core.Tv
 {
@@ -15,6 +16,7 @@ namespace NzbDrone.Core.Tv
             Genres = new List<string>();
             Actors = new List<Actor>();
             Seasons = new List<Season>();
+            Translations = new List<SeriesTranslation>();
             Tags = new HashSet<int>();
             OriginalLanguage = Language.English;
             MalIds = new HashSet<int>();
@@ -59,6 +61,7 @@ namespace NzbDrone.Core.Tv
         public Language OriginalLanguage { get; set; }
 
         public List<Season> Seasons { get; set; }
+        public List<SeriesTranslation> Translations { get; set; }
         public HashSet<int> Tags { get; set; }
         public AddSeriesOptions AddOptions { get; set; }
 

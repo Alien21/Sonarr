@@ -14,6 +14,7 @@ using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Tv;
+using NzbDrone.Core.Tv.Translations;
 
 namespace NzbDrone.Core.IndexerSearch
 {
@@ -30,6 +31,7 @@ namespace NzbDrone.Core.IndexerSearch
         private readonly IIndexerFactory _indexerFactory;
         private readonly ISceneMappingService _sceneMapping;
         private readonly ISeriesService _seriesService;
+        private readonly ISeriesTranslationService _seriesTranslationService;
         private readonly IEpisodeService _episodeService;
         private readonly IMakeDownloadDecision _makeDownloadDecision;
         private readonly Logger _logger;
@@ -37,6 +39,7 @@ namespace NzbDrone.Core.IndexerSearch
         public ReleaseSearchService(IIndexerFactory indexerFactory,
                                 ISceneMappingService sceneMapping,
                                 ISeriesService seriesService,
+                                ISeriesTranslationService seriesTranslationService,
                                 IEpisodeService episodeService,
                                 IMakeDownloadDecision makeDownloadDecision,
                                 Logger logger)
@@ -44,6 +47,7 @@ namespace NzbDrone.Core.IndexerSearch
             _indexerFactory = indexerFactory;
             _sceneMapping = sceneMapping;
             _seriesService = seriesService;
+            _seriesTranslationService = seriesTranslationService;
             _episodeService = episodeService;
             _makeDownloadDecision = makeDownloadDecision;
             _logger = logger;
@@ -474,6 +478,8 @@ namespace NzbDrone.Core.IndexerSearch
                 spec.SceneTitles.Add(series.Title);
             }
 
+            AddSeriesTranslationTitles(spec, series);
+
             return spec;
         }
 
@@ -490,6 +496,8 @@ namespace NzbDrone.Core.IndexerSearch
             spec.MonitoredEpisodesOnly = monitoredOnly;
             spec.UserInvokedSearch = userInvokedSearch;
             spec.InteractiveSearch = interactiveSearch;
+
+            AddSeriesTranslationTitles(spec, series);
 
             return spec;
         }
@@ -508,7 +516,24 @@ namespace NzbDrone.Core.IndexerSearch
             spec.UserInvokedSearch = userInvokedSearch;
             spec.InteractiveSearch = interactiveSearch;
 
+            AddSeriesTranslationTitles(spec, series);
+
             return spec;
+        }
+
+        private void AddSeriesTranslationTitles(SearchCriteriaBase spec, Series series)
+        {
+            var translations = series.Translations;
+
+            if (translations == null || !translations.Any())
+            {
+                translations = _seriesTranslationService.GetAllTranslationsForSeries(series.Id);
+                series.Translations = translations ?? new List<SeriesTranslation>();
+            }
+
+            spec.SceneTitles ??= new List<string>();
+            spec.SceneTitles.AddRange(series.Translations.Select(t => t.Title).Where(t => t.IsNotNullOrWhiteSpace()));
+            spec.SceneTitles = spec.SceneTitles.Distinct(StringComparer.InvariantCultureIgnoreCase).ToList();
         }
 
         private async Task<List<DownloadDecision>> Dispatch(Func<IIndexer, Task<IList<ReleaseInfo>>> searchAction, SearchCriteriaBase criteriaBase)
