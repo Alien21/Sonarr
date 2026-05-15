@@ -236,6 +236,118 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             return language == Language.Original ? Language.English : language;
         }
 
+        private static string GetExactSearchTitle(string title)
+        {
+            var parserResult = Parser.Parser.ParseTitle(title);
+
+            return parserResult?.SeriesTitleInfo?.TitleWithoutYear ??
+                   parserResult?.SeriesTitle ??
+                   title;
+        }
+
+        private static bool IsExactTitleMatch(string cleanTitle, string candidateTitle)
+        {
+            return candidateTitle.IsNotNullOrWhiteSpace() && Parser.Parser.CleanSeriesTitle(candidateTitle) == cleanTitle;
+        }
+
+        private static bool IsExactDefaultTitleMatch(string cleanTitle, Series series)
+        {
+            return (series.CleanTitle.IsNotNullOrWhiteSpace() && series.CleanTitle == cleanTitle) ||
+                   IsExactTitleMatch(cleanTitle, series.Title);
+        }
+
+        private static bool IsExactLocalizedTitleMatch(string cleanTitle, Language seriesInfoLanguage, Series series)
+        {
+            return series.Translations?.Any(t =>
+                t.Language == seriesInfoLanguage &&
+                ((t.CleanTitle.IsNotNullOrWhiteSpace() && t.CleanTitle == cleanTitle) ||
+                 IsExactTitleMatch(cleanTitle, t.Title))) == true;
+        }
+
+        private static string FormatExactSearchMatches(IEnumerable<Series> series)
+        {
+            var matches = series
+                .Select(s => $"{s.Title} ({s.Year}) tvdbid: {s.TvdbId}")
+                .ToList();
+
+            return matches.Any() ? string.Join(", ", matches) : "none";
+        }
+
+        public Series SearchForNewSeriesByExactTitle(string title, int year, List<Series> candidates)
+        {
+            try
+            {
+                var parserResult = Parser.Parser.ParseTitle(title);
+
+                if (year <= 1800 && parserResult?.SeriesTitleInfo?.Year > 1800)
+                {
+                    year = parserResult.SeriesTitleInfo.Year;
+                }
+
+                if (year <= 1800)
+                {
+                    return null;
+                }
+
+                var exactSearchTitle = GetExactSearchTitle(title);
+                var cleanTitle = Parser.Parser.CleanSeriesTitle(exactSearchTitle);
+
+                if (cleanTitle.IsNullOrWhiteSpace())
+                {
+                    return null;
+                }
+
+                var candidatesInYear = candidates.Where(s => s.Year == year).ToList();
+                var defaultTitleMatches = candidatesInYear
+                    .Where(s => IsExactDefaultTitleMatch(cleanTitle, s))
+                    .ToList();
+                var localizedTitleMatches = new List<Series>();
+
+                var seriesInfoLanguage = GetSeriesInfoSearchLanguage();
+
+                if (seriesInfoLanguage != Language.English)
+                {
+                    localizedTitleMatches = candidatesInYear
+                        .Where(s => IsExactLocalizedTitleMatch(cleanTitle, seriesInfoLanguage, s))
+                        .ToList();
+                }
+
+                var uniqueMatches = defaultTitleMatches
+                    .Concat(localizedTitleMatches)
+                    .DistinctBy(s => s.TvdbId)
+                    .ToList();
+
+                _logger.Debug("Exact search for '{0}' normalized to '{1}' using language '{2}' found {3} default-title matches [{4}] and {5} localized-title matches [{6}] ({7} unique tvdb ids).",
+                    title,
+                    cleanTitle,
+                    seriesInfoLanguage,
+                    defaultTitleMatches.Count,
+                    FormatExactSearchMatches(defaultTitleMatches),
+                    localizedTitleMatches.Count,
+                    FormatExactSearchMatches(localizedTitleMatches),
+                    uniqueMatches.Count);
+
+                if (uniqueMatches.Count != 1)
+                {
+                    if (uniqueMatches.Count > 1)
+                    {
+                        _logger.Debug("Exact search for '{0}' refused automatic matching because multiple distinct series matched across default and localized search branches: {1}",
+                            title,
+                            FormatExactSearchMatches(uniqueMatches));
+                    }
+
+                    return null;
+                }
+
+                return uniqueMatches.Single();
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Exact search for '{0}' failed.", title);
+                return null;
+            }
+        }
+
         private Series MapSearchResult(ShowResource show)
         {
             var series = _seriesService.FindByTvdbId(show.TvdbId);

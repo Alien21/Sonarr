@@ -499,9 +499,32 @@ namespace NzbDrone.Core.Download
             var parsedYear = parsedEpisodeInfo?.SeriesTitleInfo?.Year ?? 0;
             Series match = null;
 
-            if (parsedYear > 1890 && series.Count(s => s.Year == parsedYear) == 1)
+            if (parsedYear > 1890)
             {
-                match = series.First(s => s.Year == parsedYear);
+                var seriesInYear = series.Where(s => s.Year == parsedYear).ToList();
+
+                if (seriesInYear.Count == 1)
+                {
+                    match = seriesInYear.First();
+                }
+                else if (seriesInYear.Count > 1)
+                {
+                    _logger.Debug("Auto-import found {0} candidate series for '{1}' in year {2}; trying exact default/localized title match.",
+                        seriesInYear.Count,
+                        trackedDownload.DownloadItem.Title,
+                        parsedYear);
+
+                    match = _searchProxy.SearchForNewSeriesByExactTitle(searchTerm, parsedYear, seriesInYear);
+
+                    if (match != null)
+                    {
+                        _logger.Debug("Auto-import exact title match for '{0}' resolved to '{1}' tvdbid: {2}", trackedDownload.DownloadItem.Title, match.Title, match.TvdbId);
+                    }
+                    else
+                    {
+                        _logger.Debug("Auto-import exact default/localized title match did not resolve '{0}' for year {1}.", trackedDownload.DownloadItem.Title, parsedYear);
+                    }
+                }
             }
 
             if (match == null && series.Count == 1)
