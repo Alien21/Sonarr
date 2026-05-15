@@ -22,6 +22,7 @@ interface CssExports {
   'poster': string;
   'qualityProfileName': string;
   'runtime': string;
+  'secondaryTitle': string;
   'seriesNavigationButton': string;
   'seriesNavigationButtons': string;
   'sizeOnDisk': string;
@@ -30,6 +31,7 @@ interface CssExports {
   'title': string;
   'titleContainer': string;
   'titleRow': string;
+  'titleTextContainer': string;
   'toggleMonitoredContainer': string;
 }
 export const cssExports: CssExports;

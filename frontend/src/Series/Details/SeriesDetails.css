@@ -58,11 +58,24 @@
   margin-bottom: 5px;
 }
 
+.titleTextContainer {
+  overflow: hidden;
+}
+
 .title {
   text-wrap: balance;
   font-weight: 300;
   font-size: 50px;
   line-height: 50px;
+}
+
+.secondaryTitle {
+  margin-top: -4px;
+  color: rgba(255, 255, 255, 0.78);
+  text-wrap: balance;
+  font-weight: 300;
+  font-size: 24px;
+  line-height: 30px;
 }
 
 .toggleMonitoredContainer {
@@ -166,6 +179,12 @@
     font-weight: 300;
     font-size: 30px;
     line-height: 30px;
+  }
+
+  .secondaryTitle {
+    margin-top: 2px;
+    font-size: 16px;
+    line-height: 20px;
   }
 }
 

@@ -63,6 +63,31 @@ function getDateYear(date) {
   return dateDate.format('YYYY');
 }
 
+function getTitleKey(title) {
+  return title?.trim().toLowerCase();
+}
+
+function getSecondaryTitles(title, defaultTitle) {
+  const seenTitles = new Set();
+  const titleKey = getTitleKey(title);
+
+  if (titleKey) {
+    seenTitles.add(titleKey);
+  }
+
+  return [defaultTitle].filter((secondaryTitle) => {
+    const secondaryTitleKey = getTitleKey(secondaryTitle);
+
+    if (!secondaryTitleKey || seenTitles.has(secondaryTitleKey)) {
+      return false;
+    }
+
+    seenTitles.add(secondaryTitleKey);
+
+    return true;
+  });
+}
+
 class SeriesDetails extends Component {
 
   //
@@ -177,6 +202,7 @@ class SeriesDetails extends Component {
       imdbId,
       tmdbId,
       title,
+      defaultTitle,
       runtime,
       ratings,
       path,
@@ -249,6 +275,7 @@ class SeriesDetails extends Component {
     }
 
     const fanartUrl = getFanartUrl(images);
+    const secondaryTitles = getSecondaryTitles(title, defaultTitle);
 
     return (
       <PageContent title={title}>
@@ -359,8 +386,21 @@ class SeriesDetails extends Component {
                       />
                     </div>
 
-                    <div className={styles.title}>
-                      {title}
+                    <div className={styles.titleTextContainer}>
+                      <div className={styles.title}>
+                        {title}
+                      </div>
+
+                      {
+                        secondaryTitles.map((secondaryTitle) => (
+                          <div
+                            key={secondaryTitle}
+                            className={styles.secondaryTitle}
+                          >
+                            {secondaryTitle}
+                          </div>
+                        ))
+                      }
                     </div>
 
                     {
@@ -740,6 +780,7 @@ SeriesDetails.propTypes = {
   imdbId: PropTypes.string,
   tmdbId: PropTypes.number,
   title: PropTypes.string.isRequired,
+  defaultTitle: PropTypes.string,
   runtime: PropTypes.number.isRequired,
   ratings: PropTypes.object.isRequired,
   path: PropTypes.string.isRequired,
