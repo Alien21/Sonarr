@@ -487,6 +487,10 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
 
             var imported = new List<ImportResult>();
             var importedTrackedDownload = new List<ManuallyImportedFile>();
+            var manuallyMatchedEpisodesByDownloadId = message.Files
+                .Where(f => f.DownloadId.IsNotNullOrWhiteSpace())
+                .GroupBy(f => f.DownloadId)
+                .ToDictionary(g => g.Key, g => _episodeService.GetEpisodes(g.SelectMany(f => f.EpisodeIds).Distinct().ToList()));
 
             for (var i = 0; i < message.Files.Count; i++)
             {
@@ -499,6 +503,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                 var existingFile = series.Path.IsParentPath(file.Path);
 
                 TrackedDownload trackedDownload = null;
+                List<Episode> manuallyMatchedEpisodes = null;
 
                 var localEpisode = new LocalEpisode
                 {
@@ -518,6 +523,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                 if (file.DownloadId.IsNotNullOrWhiteSpace())
                 {
                     trackedDownload = _trackedDownloadService.Find(file.DownloadId);
+                    manuallyMatchedEpisodesByDownloadId.TryGetValue(file.DownloadId, out manuallyMatchedEpisodes);
                     localEpisode.DownloadClientEpisodeInfo = trackedDownload?.RemoteEpisode?.ParsedEpisodeInfo;
                     localEpisode.DownloadItem = trackedDownload?.DownloadItem;
                 }
@@ -553,6 +559,8 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                 }
                 else
                 {
+                    UpdateTrackedDownloadForManualImport(trackedDownload, localEpisode, manuallyMatchedEpisodes);
+
                     var importResult = _importApprovedEpisodes.Import(new List<ImportDecision> { importDecision }, true, trackedDownload.DownloadItem, message.ImportMode).First();
 
                     imported.Add(importResult);
@@ -620,6 +628,24 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                     _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, importedSeries.Id, episodeFiles, importedResults.First().ImportDecision.LocalEpisode.Release));
                 }
             }
+        }
+
+        private void UpdateTrackedDownloadForManualImport(TrackedDownload trackedDownload, LocalEpisode localEpisode, List<Episode> manuallyMatchedEpisodes)
+        {
+            var episodes = manuallyMatchedEpisodes?.Any() == true ? manuallyMatchedEpisodes : localEpisode.Episodes;
+
+            trackedDownload.RemoteEpisode ??= new RemoteEpisode();
+            trackedDownload.RemoteEpisode.Series = localEpisode.Series;
+            trackedDownload.RemoteEpisode.Episodes = episodes;
+            trackedDownload.RemoteEpisode.ParsedEpisodeInfo ??= localEpisode.FileEpisodeInfo;
+            trackedDownload.RemoteEpisode.Languages = localEpisode.Languages;
+            trackedDownload.RemoteEpisode.CustomFormats = localEpisode.CustomFormats;
+            trackedDownload.RemoteEpisode.CustomFormatScore = localEpisode.CustomFormatScore;
+
+            trackedDownload.ClearStatus();
+            trackedDownload.State = TrackedDownloadState.Importing;
+
+            _eventAggregator.PublishEvent(new TrackedDownloadRefreshedEvent(_trackedDownloadService.GetTrackedDownloads()));
         }
     }
 }
