@@ -25,6 +25,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
         public int? AnalyzedMediaInfoSeriesId { get; set; }
         public QualityModel AnalyzedQuality { get; set; }
         public List<Language> AnalyzedLanguages { get; set; }
+        public List<Language> AnalyzedSubtitleLanguages { get; set; }
         public Dictionary<int, AnalyzedDownloadFile> AnalyzedEpisodeFiles { get; set; }
 
         public TrackedDownload()
@@ -65,6 +66,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
         public string Path { get; set; }
         public QualityModel Quality { get; set; }
         public List<Language> Languages { get; set; }
+        public List<Language> SubtitleLanguages { get; set; }
     }
 
     public enum TrackedDownloadState

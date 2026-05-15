@@ -96,6 +96,12 @@ export const defaultState = {
         isVisible: false
       },
       {
+        name: 'subtitleLanguages',
+        label: () => translate('SubtitleLanguages'),
+        isSortable: false,
+        isVisible: true
+      },
+      {
         name: 'quality',
         label: () => translate('Quality'),
         isSortable: true,

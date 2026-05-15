@@ -10,6 +10,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Download.TrackedDownloads;
+using NzbDrone.Core.Extras.Subtitles;
 using NzbDrone.Core.History;
 using NzbDrone.Core.Languages;
 using NzbDrone.Core.MediaFiles;
@@ -646,14 +647,18 @@ namespace NzbDrone.Core.Download
                 var queueEpisode = localEpisodes.FirstOrDefault(HasQueueMetadata);
                 var mediaInfo = queueEpisode?.MediaInfo;
 
-                _logger.Debug("Completed download file analysis updated queue item '{0}' from file '{1}'. Quality: '{2}', queue languages: '{3}', media title: '{4}', embedded audio: '{5}', embedded subtitles: '{6}', matched episodes: '{7}'",
+                var externalSubtitles = GetExternalSubtitleFiles(queueEpisode);
+
+                _logger.Debug("Completed download file analysis updated queue item '{0}' from file '{1}'. Quality: '{2}', queue languages: '{3}', queue subtitles: '{4}', media title: '{5}', embedded audio: '{6}', embedded subtitles: '{7}', external subtitles: '{8}', matched episodes: '{9}'",
                     trackedDownload.DownloadItem.Title,
                     queueEpisode?.Path ?? "none",
                     queueEpisode?.Quality?.ToString() ?? "none",
                     FormatValues(queueEpisode?.Languages),
+                    FormatValues(trackedDownload.AnalyzedSubtitleLanguages),
                     mediaInfo?.Title ?? "none",
                     FormatValues(mediaInfo?.AudioLanguages),
                     FormatValues(mediaInfo?.Subtitles),
+                    FormatExternalSubtitleFiles(externalSubtitles),
                     FormatEpisodes(queueEpisode?.Episodes));
             }
             catch (Exception ex)
@@ -682,18 +687,24 @@ namespace NzbDrone.Core.Download
                 trackedDownload.AnalyzedLanguages = queueEpisode.Languages;
             }
 
+            var subtitleLanguages = GetSubtitleLanguages(queueEpisode);
+            if (subtitleLanguages.Any())
+            {
+                trackedDownload.AnalyzedSubtitleLanguages = subtitleLanguages;
+            }
+
             var analyzedEpisodeFiles = localEpisodes
                 .Where(HasQueueMetadata)
-                .Where(localEpisode => localEpisode.Episodes?.Any() == true)
-                .SelectMany(localEpisode => localEpisode.Episodes.Select(episode => new
+                .Select(localEpisode => new
+                {
+                    LocalEpisode = localEpisode,
+                    File = ToAnalyzedDownloadFile(localEpisode)
+                })
+                .Where(item => item.LocalEpisode.Episodes?.Any() == true)
+                .SelectMany(item => item.LocalEpisode.Episodes.Select(episode => new
                 {
                     episode.Id,
-                    File = new AnalyzedDownloadFile
-                    {
-                        Path = localEpisode.Path,
-                        Quality = localEpisode.Quality,
-                        Languages = localEpisode.Languages
-                    }
+                    item.File
                 }))
                 .GroupBy(item => item.Id)
                 .ToDictionary(item => item.Key, item => item.First().File);
@@ -709,6 +720,17 @@ namespace NzbDrone.Core.Download
             {
                 trackedDownload.AnalyzedEpisodeFiles[analyzedEpisodeFile.Key] = analyzedEpisodeFile.Value;
             }
+        }
+
+        private AnalyzedDownloadFile ToAnalyzedDownloadFile(LocalEpisode localEpisode)
+        {
+            return new AnalyzedDownloadFile
+            {
+                Path = localEpisode.Path,
+                Quality = localEpisode.Quality,
+                Languages = localEpisode.Languages,
+                SubtitleLanguages = GetSubtitleLanguages(localEpisode)
+            };
         }
 
         private List<LocalEpisode> GetCompletedDownloadQueueEpisodes(TrackedDownload trackedDownload, string outputPath)
@@ -800,6 +822,105 @@ namespace NzbDrone.Core.Download
             return languages?.Any() == true && languages.Any(l => l != Language.Unknown);
         }
 
+        private List<Language> GetSubtitleLanguages(LocalEpisode localEpisode)
+        {
+            var languages = new List<Language>();
+
+            var embeddedSubtitleLanguages = localEpisode.MediaInfo?.Subtitles?
+                                                        .Where(language => language.IsNotNullOrWhiteSpace())
+                                                        .Distinct()
+                                                        .ToList() ?? new List<string>();
+
+            foreach (var subtitleLanguage in embeddedSubtitleLanguages)
+            {
+                languages.AddIfNotNull(IsoLanguages.Find(subtitleLanguage)?.Language);
+            }
+
+            foreach (var subtitleFile in GetExternalSubtitleFiles(localEpisode))
+            {
+                languages.AddIfNotNull(subtitleFile.Info?.Language);
+            }
+
+            return languages
+                .Where(language => language != Language.Unknown)
+                .GroupBy(language => language.Id)
+                .Select(group => group.First())
+                .ToList();
+        }
+
+        private List<ExternalSubtitleFile> GetExternalSubtitleFiles(LocalEpisode localEpisode)
+        {
+            if (localEpisode?.Path.IsNullOrWhiteSpace() != false)
+            {
+                return new List<ExternalSubtitleFile>();
+            }
+
+            var sourceFolder = _diskProvider.GetParentFolder(localEpisode.Path);
+
+            if (sourceFolder.IsNullOrWhiteSpace() || !_diskProvider.FolderExists(sourceFolder))
+            {
+                return new List<ExternalSubtitleFile>();
+            }
+
+            var subtitleFiles = _diskProvider.GetFiles(sourceFolder, false)
+                                             .Where(file => SubtitleFileExtensions.Extensions.Contains(Path.GetExtension(file)))
+                                             .ToList();
+
+            if (subtitleFiles.Empty())
+            {
+                return new List<ExternalSubtitleFile>();
+            }
+
+            var sourceFileName = Path.GetFileNameWithoutExtension(localEpisode.Path);
+            var matchingFiles = subtitleFiles
+                .Where(file => Path.GetFileNameWithoutExtension(file).StartsWithIgnoreCase(sourceFileName))
+                .ToList();
+
+            if (matchingFiles.Empty() && localEpisode.FileEpisodeInfo != null)
+            {
+                matchingFiles = subtitleFiles
+                    .Where(file => SubtitleMatchesLocalEpisode(file, localEpisode.FileEpisodeInfo))
+                    .ToList();
+            }
+
+            if (matchingFiles.Empty())
+            {
+                var videoFiles = _diskProvider.GetFiles(sourceFolder, false)
+                                              .Where(file => MediaFileExtensions.Extensions.Contains(Path.GetExtension(file)))
+                                              .ToList();
+
+                if (videoFiles.Count == 1)
+                {
+                    matchingFiles = subtitleFiles;
+                }
+            }
+
+            return matchingFiles
+                .Select(file => new ExternalSubtitleFile
+                {
+                    Path = file,
+                    Info = LanguageParser.ParseSubtitleLanguageInformation(file)
+                })
+                .ToList();
+        }
+
+        private bool SubtitleMatchesLocalEpisode(string subtitleFile, ParsedEpisodeInfo fileEpisodeInfo)
+        {
+            var subtitleEpisodeInfo = Parser.Parser.ParsePath(subtitleFile, _configService.ParseTvdbIdFromReleaseName);
+
+            if (subtitleEpisodeInfo == null ||
+                !string.Equals(subtitleEpisodeInfo.SeriesTitle, fileEpisodeInfo.SeriesTitle, StringComparison.InvariantCultureIgnoreCase) ||
+                subtitleEpisodeInfo.SeasonNumber != fileEpisodeInfo.SeasonNumber)
+            {
+                return false;
+            }
+
+            return (fileEpisodeInfo.EpisodeNumbers.Any() &&
+                    subtitleEpisodeInfo.EpisodeNumbers.SequenceEqual(fileEpisodeInfo.EpisodeNumbers)) ||
+                   (fileEpisodeInfo.AbsoluteEpisodeNumbers.Any() &&
+                    subtitleEpisodeInfo.AbsoluteEpisodeNumbers.SequenceEqual(fileEpisodeInfo.AbsoluteEpisodeNumbers));
+        }
+
         private string FormatValues<T>(IEnumerable<T> values)
         {
             var formattedValues = values?.Select(value => value?.ToString())
@@ -808,6 +929,40 @@ namespace NzbDrone.Core.Download
                                          .ToList();
 
             return formattedValues?.Any() == true ? string.Join(", ", formattedValues) : "none";
+        }
+
+        private string FormatExternalSubtitleFiles(List<ExternalSubtitleFile> subtitleFiles)
+        {
+            if (subtitleFiles.Empty())
+            {
+                return "none";
+            }
+
+            return string.Join("; ", subtitleFiles.Select(file =>
+            {
+                var info = file.Info;
+                var details = new List<string>
+                {
+                    $"language: {info.Language}"
+                };
+
+                if (info.LanguageTags?.Any() == true)
+                {
+                    details.Add($"tags: {string.Join(", ", info.LanguageTags)}");
+                }
+
+                if (info.Title.IsNotNullOrWhiteSpace())
+                {
+                    details.Add($"title: {info.Title}");
+                }
+
+                if (info.Copy > 0)
+                {
+                    details.Add($"copy: {info.Copy}");
+                }
+
+                return $"{file.Path} [{string.Join(", ", details)}]";
+            }));
         }
 
         private string FormatEpisodes(List<Episode> episodes)
@@ -888,6 +1043,12 @@ namespace NzbDrone.Core.Download
             }
 
             return true;
+        }
+
+        private class ExternalSubtitleFile
+        {
+            public string Path { get; set; }
+            public SubtitleTitleInfo Info { get; set; }
         }
     }
 }

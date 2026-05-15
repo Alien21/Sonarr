@@ -60,6 +60,7 @@ namespace NzbDrone.Core.Queue
         private Queue MapQueueItem(TrackedDownload trackedDownload, Episode episode)
         {
             var languages = GetQueueLanguages(trackedDownload, episode);
+            var subtitleLanguages = GetQueueSubtitleLanguages(trackedDownload, episode);
             var quality = GetQueueQuality(trackedDownload, episode);
 
             var queue = new Queue
@@ -67,6 +68,7 @@ namespace NzbDrone.Core.Queue
                 Series = trackedDownload.RemoteEpisode?.Series,
                 Episode = episode,
                 Languages = languages,
+                SubtitleLanguages = subtitleLanguages,
                 Quality = quality,
                 Title = Parser.Parser.RemoveFileExtension(trackedDownload.DownloadItem.Title),
                 Size = trackedDownload.DownloadItem.TotalSize,
@@ -118,6 +120,23 @@ namespace NzbDrone.Core.Queue
             }
 
             return new List<Language> { Language.Unknown };
+        }
+
+        private List<Language> GetQueueSubtitleLanguages(TrackedDownload trackedDownload, Episode episode)
+        {
+            if (episode != null &&
+                trackedDownload.AnalyzedEpisodeFiles?.TryGetValue(episode.Id, out var analyzedEpisode) == true &&
+                HasKnownLanguages(analyzedEpisode.SubtitleLanguages))
+            {
+                return analyzedEpisode.SubtitleLanguages;
+            }
+
+            if (HasKnownLanguages(trackedDownload.AnalyzedSubtitleLanguages))
+            {
+                return trackedDownload.AnalyzedSubtitleLanguages;
+            }
+
+            return new List<Language>();
         }
 
         private QualityModel GetQueueQuality(TrackedDownload trackedDownload, Episode episode)

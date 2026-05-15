@@ -21,6 +21,7 @@ namespace Sonarr.Api.V3.Queue
         public SeriesResource Series { get; set; }
         public EpisodeResource Episode { get; set; }
         public List<Language> Languages { get; set; }
+        public List<Language> SubtitleLanguages { get; set; }
         public QualityModel Quality { get; set; }
         public List<CustomFormatResource> CustomFormats { get; set; }
         public int CustomFormatScore { get; set; }
@@ -74,6 +75,7 @@ namespace Sonarr.Api.V3.Queue
                 Series = includeSeries && model.Series != null ? seriesResourceService.ToResource(model.Series) : null,
                 Episode = includeEpisode && model.Episode != null ? model.Episode.ToResource() : null,
                 Languages = model.Languages,
+                SubtitleLanguages = model.SubtitleLanguages,
                 Quality = model.Quality,
                 CustomFormats = customFormats?.ToResource(false),
                 CustomFormatScore = customFormatScore,

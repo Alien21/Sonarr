@@ -53,6 +53,7 @@ interface QueueRowProps {
   statusMessages?: StatusMessage[];
   errorMessage?: string;
   languages: Language[];
+  subtitleLanguages: Language[];
   quality: QualityModel;
   customFormats?: CustomFormat[];
   customFormatScore: number;
@@ -88,6 +89,7 @@ function QueueRow(props: QueueRowProps) {
     statusMessages,
     errorMessage,
     languages,
+    subtitleLanguages = [],
     quality,
     customFormats = [],
     customFormatScore,
@@ -260,6 +262,14 @@ function QueueRow(props: QueueRowProps) {
           return (
             <TableRowCell key={name}>
               <EpisodeLanguages languages={languages} />
+            </TableRowCell>
+          );
+        }
+
+        if (name === 'subtitleLanguages') {
+          return (
+            <TableRowCell key={name}>
+              <EpisodeLanguages languages={subtitleLanguages} />
             </TableRowCell>
           );
         }
