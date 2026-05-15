@@ -690,6 +690,8 @@
   "AllowAutomaticImportHelpText": "Allow Sonarr to resolve unmatched completed downloads, add the matching series using the configured automatic import root folder and quality profile, and import them automatically. When disabled, only downloads already matched to an existing series can import automatically.",
   "ParseTvdbIdFromReleaseName": "Parse TVDB ID from Release Name",
   "ParseTvdbIdFromReleaseNameHelpText": "Use tvdb:12345 tags in release names and parent folders to match the series by TVDB ID before normal title or alias matching. Disabled by default.",
+  "ParseEpisodeNumberOnlyAsSeasonOne": "Parse Episode-Only Releases as Season 1",
+  "ParseEpisodeNumberOnlyAsSeasonOneHelpText": "Treat E1, E01, E001, EP1, EP01, and EP001 release names without an explicit season number as season 1 episode numbers. Disabled by default.",
   "PreserveDownloadsForExistingEpisodes": "Preserve Downloads for Existing Episodes",
   "PreserveDownloadsForExistingEpisodesHelpText": "When a completed download matches one or more episodes that already have files, block automatic import and leave it in the queue for manual review.",
   "AnalyzeCompletedDownloadFiles": "Analyze Completed Download Files",

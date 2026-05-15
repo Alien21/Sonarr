@@ -1,3 +1,4 @@
+using System.Linq;
 using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.Test.Framework;
@@ -65,6 +66,21 @@ namespace NzbDrone.Core.Test.ParserTests
             var result = Parser.Parser.ParsePath(@"C:\Test\Series Title [tvdb:12345]\S01\Series.Title.S01E01.mkv".AsOsAgnostic());
 
             result.TvdbId.Should().BeNull();
+
+            ExceptionVerification.IgnoreWarns();
+        }
+
+        [Test]
+        public void should_parse_episode_only_release_from_path_when_enabled()
+        {
+            var result = Parser.Parser.ParsePath(@"C:\Test\Series Title\Series.Title.EP123.720p.HDTV.x264-GROUP.mkv".AsOsAgnostic(), false, true);
+
+            result.Should().NotBeNull();
+            result.SeriesTitle.Should().Be("Series Title");
+            result.SeasonNumber.Should().Be(1);
+            result.EpisodeNumbers.Single().Should().Be(123);
+            result.AbsoluteEpisodeNumbers.Should().BeEmpty();
+            result.FullSeason.Should().BeFalse();
 
             ExceptionVerification.IgnoreWarns();
         }

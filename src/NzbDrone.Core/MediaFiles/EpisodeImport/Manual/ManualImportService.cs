@@ -171,8 +171,8 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                 var localEpisode = new LocalEpisode();
                 localEpisode.Series = series;
                 localEpisode.Episodes = episodes;
-                localEpisode.FileEpisodeInfo = Parser.Parser.ParsePath(path, _configService.ParseTvdbIdFromReleaseName);
-                localEpisode.DownloadClientEpisodeInfo = downloadClientItem == null ? null : Parser.Parser.ParseTitle(downloadClientItem.Title, _configService.ParseTvdbIdFromReleaseName);
+                localEpisode.FileEpisodeInfo = Parser.Parser.ParsePath(path, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
+                localEpisode.DownloadClientEpisodeInfo = downloadClientItem == null ? null : Parser.Parser.ParseTitle(downloadClientItem.Title, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
                 localEpisode.DownloadItem = downloadClientItem;
                 localEpisode.Path = path;
                 localEpisode.SceneSource = SceneSource(series, rootFolder);
@@ -213,10 +213,10 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                 {
                     Series = series,
                     Episodes = new List<Episode>(),
-                    FileEpisodeInfo = Parser.Parser.ParsePath(path, _configService.ParseTvdbIdFromReleaseName),
+                    FileEpisodeInfo = Parser.Parser.ParsePath(path, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne),
                     DownloadClientEpisodeInfo = downloadClientItem == null
                         ? null
-                        : Parser.Parser.ParseTitle(downloadClientItem.Title, _configService.ParseTvdbIdFromReleaseName),
+                        : Parser.Parser.ParseTitle(downloadClientItem.Title, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne),
                     DownloadItem = downloadClientItem,
                     Path = path,
                     SceneSource = SceneSource(series, rootFolder),
@@ -292,7 +292,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                 return processedFiles.Concat(processedFolders).Where(i => i != null).ToList();
             }
 
-            var folderInfo = Parser.Parser.ParseTitle(directoryInfo.Name, _configService.ParseTvdbIdFromReleaseName);
+            var folderInfo = Parser.Parser.ParseTitle(directoryInfo.Name, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
             var seriesFiles = _diskScanService.FilterPaths(rootFolder, _diskScanService.GetVideoFiles(baseFolder).ToList());
             var decisions = _importDecisionMaker.GetImportDecisions(seriesFiles, series, downloadClientItem, folderInfo, SceneSource(series, baseFolder), filterExistingFiles);
 
@@ -323,7 +323,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
 
                 if (series == null)
                 {
-                    var relativeParseInfo = Parser.Parser.ParsePath(relativeFile, _configService.ParseTvdbIdFromReleaseName);
+                    var relativeParseInfo = Parser.Parser.ParsePath(relativeFile, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
 
                     if (relativeParseInfo != null)
                     {
@@ -499,7 +499,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                 var file = message.Files[i];
                 var series = _seriesService.GetSeries(file.SeriesId);
                 var episodes = _episodeService.GetEpisodes(file.EpisodeIds);
-                var fileEpisodeInfo = Parser.Parser.ParsePath(file.Path, _configService.ParseTvdbIdFromReleaseName) ?? new ParsedEpisodeInfo();
+                var fileEpisodeInfo = Parser.Parser.ParsePath(file.Path, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne) ?? new ParsedEpisodeInfo();
                 var existingFile = series.Path.IsParentPath(file.Path);
 
                 TrackedDownload trackedDownload = null;
@@ -530,7 +530,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
 
                 if (file.FolderName.IsNotNullOrWhiteSpace())
                 {
-                    localEpisode.FolderEpisodeInfo = Parser.Parser.ParseTitle(file.FolderName, _configService.ParseTvdbIdFromReleaseName);
+                    localEpisode.FolderEpisodeInfo = Parser.Parser.ParseTitle(file.FolderName, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
                     localEpisode.SceneSource = !existingFile;
                 }
 

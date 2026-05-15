@@ -84,6 +84,7 @@ namespace NzbDrone.Core.Configuration
         bool PreferDualAudio { get; }
         bool AllowAutomaticImport { get; }
         bool ParseTvdbIdFromReleaseName { get; }
+        bool ParseEpisodeNumberOnlyAsSeasonOne { get; }
         bool BlockAutoImportForExistingEpisodeFiles { get; }
         bool AnalyzeCompletedDownloadFiles { get; }
         bool UseSeriesInfoLanguage { get; }

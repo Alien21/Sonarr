@@ -513,6 +513,8 @@
     "AllowAutomaticImportHelpText": "Povolí Sonarru rozpoznat nespárovaná dokončená stahování, přidat odpovídající seriál pomocí nastaveného adresáře a profilu kvality pro automatický import a automaticky ho importovat. Pokud je vypnuto, automaticky se importují jen stahování už spárovaná s existujícím seriálem.",
     "ParseTvdbIdFromReleaseName": "Načítat TVDB ID z názvu releasu",
     "ParseTvdbIdFromReleaseNameHelpText": "Použije značky typu tvdb:12345 v názvech releasů a nadřazených složkách pro nalezení seriálu podle TVDB ID před běžným rozpoznáním podle názvu nebo aliasu. Ve výchozím stavu je vypnuto.",
+    "ParseEpisodeNumberOnlyAsSeasonOne": "Načítat releasy pouze s číslem epizody jako 1. řadu",
+    "ParseEpisodeNumberOnlyAsSeasonOneHelpText": "Bere názvy releasů s E1, E01, E001, EP1, EP01 nebo EP001 bez uvedené řady jako epizody 1. řady. Ve výchozím stavu je vypnuto.",
     "SeriesInfoLanguage": "Jazyk informací o seriálech",
     "SeriesInfoLanguageHelpText": "Jazyk, který {appName} použije pro informace o seriálech od poskytovatelů metadat",
     "SeriesInfoLanguageHelpTextWarning": "Existující seriály vyžadují obnovení, aby se metadata aktualizovala",

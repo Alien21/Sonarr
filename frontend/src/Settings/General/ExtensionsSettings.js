@@ -14,6 +14,7 @@ function ExtensionsSettings(props) {
     preferDualAudio,
     allowAutomaticImport,
     parseTvdbIdFromReleaseName,
+    parseEpisodeNumberOnlyAsSeasonOne,
     blockAutoImportForExistingEpisodeFiles,
     analyzeCompletedDownloadFiles,
     useSeriesInfoLanguage,
@@ -55,6 +56,18 @@ function ExtensionsSettings(props) {
           helpText={translate('ParseTvdbIdFromReleaseNameHelpText')}
           onChange={onInputChange}
           {...parseTvdbIdFromReleaseName}
+        />
+      </FormGroup>
+
+      <FormGroup size={sizes.MEDIUM}>
+        <FormLabel>{translate('ParseEpisodeNumberOnlyAsSeasonOne')}</FormLabel>
+
+        <FormInputGroup
+          type={inputTypes.CHECK}
+          name="parseEpisodeNumberOnlyAsSeasonOne"
+          helpText={translate('ParseEpisodeNumberOnlyAsSeasonOneHelpText')}
+          onChange={onInputChange}
+          {...parseEpisodeNumberOnlyAsSeasonOne}
         />
       </FormGroup>
 

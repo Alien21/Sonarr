@@ -81,7 +81,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
 
             if (downloadClientItem != null)
             {
-                downloadClientItemInfo = Parser.Parser.ParseTitle(downloadClientItem.Title, _configService.ParseTvdbIdFromReleaseName);
+                downloadClientItemInfo = Parser.Parser.ParseTitle(downloadClientItem.Title, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
             }
 
             // If not importing from a scene source (series folder for example), then assume all files are not samples
@@ -124,7 +124,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
 
             try
             {
-                var fileEpisodeInfo = Parser.Parser.ParsePath(localEpisode.Path, _configService.ParseTvdbIdFromReleaseName);
+                var fileEpisodeInfo = Parser.Parser.ParsePath(localEpisode.Path, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
 
                 localEpisode.FileEpisodeInfo = fileEpisodeInfo;
                 localEpisode.Size = _diskProvider.GetFileSize(localEpisode.Path);

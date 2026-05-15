@@ -175,7 +175,7 @@ namespace NzbDrone.Core.Download
 
             if (trackedDownload.RemoteEpisode == null)
             {
-                var parsed = Parser.Parser.ParseTitle(trackedDownload.DownloadItem.Title, _configService.ParseTvdbIdFromReleaseName);
+                var parsed = Parser.Parser.ParseTitle(trackedDownload.DownloadItem.Title, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
 
                 if (parsed != null)
                 {
@@ -899,7 +899,7 @@ namespace NzbDrone.Core.Download
             if (_diskProvider.FolderExists(outputPath))
             {
                 var directoryInfo = new DirectoryInfo(outputPath);
-                folderInfo = Parser.Parser.ParseTitle(GetCleanedUpFolderName(directoryInfo.Name), _configService.ParseTvdbIdFromReleaseName);
+                folderInfo = Parser.Parser.ParseTitle(GetCleanedUpFolderName(directoryInfo.Name), _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
                 videoFiles = _diskScanService.FilterPaths(directoryInfo.FullName, _diskScanService.GetVideoFiles(directoryInfo.FullName))
                                             .OrderBy(path => path)
                                             .ToList();
@@ -920,9 +920,9 @@ namespace NzbDrone.Core.Download
 
         private LocalEpisode GetCompletedDownloadQueueEpisode(TrackedDownload trackedDownload, string videoFile, ParsedEpisodeInfo folderInfo, bool otherVideoFiles)
         {
-            var fileInfo = Parser.Parser.ParsePath(videoFile, _configService.ParseTvdbIdFromReleaseName);
+            var fileInfo = Parser.Parser.ParsePath(videoFile, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
             var downloadClientEpisodeInfo = trackedDownload.RemoteEpisode?.ParsedEpisodeInfo ??
-                                            Parser.Parser.ParseTitle(trackedDownload.DownloadItem.Title, _configService.ParseTvdbIdFromReleaseName);
+                                            Parser.Parser.ParseTitle(trackedDownload.DownloadItem.Title, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
 
             var localEpisode = new LocalEpisode
             {
@@ -1048,7 +1048,7 @@ namespace NzbDrone.Core.Download
 
         private bool SubtitleMatchesLocalEpisode(string subtitleFile, ParsedEpisodeInfo fileEpisodeInfo)
         {
-            var subtitleEpisodeInfo = Parser.Parser.ParsePath(subtitleFile, _configService.ParseTvdbIdFromReleaseName);
+            var subtitleEpisodeInfo = Parser.Parser.ParsePath(subtitleFile, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
 
             if (subtitleEpisodeInfo == null ||
                 !string.Equals(subtitleEpisodeInfo.SeriesTitle, fileEpisodeInfo.SeriesTitle, StringComparison.InvariantCultureIgnoreCase) ||
@@ -1127,7 +1127,7 @@ namespace NzbDrone.Core.Download
         {
             var release = trackedDownload.RemoteEpisode?.Release;
             var customFormats = trackedDownload.RemoteEpisode?.CustomFormats;
-            var parsedEpisodeInfo = trackedDownload.RemoteEpisode?.ParsedEpisodeInfo ?? Parser.Parser.ParseTitle(trackedDownload.DownloadItem.Title, _configService.ParseTvdbIdFromReleaseName);
+            var parsedEpisodeInfo = trackedDownload.RemoteEpisode?.ParsedEpisodeInfo ?? Parser.Parser.ParseTitle(trackedDownload.DownloadItem.Title, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
 
             if (parsedEpisodeInfo != null)
             {

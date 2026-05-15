@@ -390,6 +390,8 @@ namespace NzbDrone.Core.Configuration
 
         public bool ParseTvdbIdFromReleaseName => GetValueBoolean("ParseTvdbIdFromReleaseName", false);
 
+        public bool ParseEpisodeNumberOnlyAsSeasonOne => GetValueBoolean("ParseEpisodeNumberOnlyAsSeasonOne", false);
+
         public bool BlockAutoImportForExistingEpisodeFiles => GetValueBoolean("BlockAutoImportForExistingEpisodeFiles", false);
 
         public bool AnalyzeCompletedDownloadFiles => GetValueBoolean("AnalyzeCompletedDownloadFiles", false);

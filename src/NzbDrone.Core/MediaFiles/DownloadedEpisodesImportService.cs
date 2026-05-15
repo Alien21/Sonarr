@@ -120,7 +120,7 @@ namespace NzbDrone.Core.MediaFiles
 
                 foreach (var videoFile in videoFiles)
                 {
-                    var episodeParseResult = Parser.Parser.ParseTitle(Path.GetFileName(videoFile), _configService.ParseTvdbIdFromReleaseName);
+                    var episodeParseResult = Parser.Parser.ParseTitle(Path.GetFileName(videoFile), _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
 
                     if (episodeParseResult == null)
                     {
@@ -185,7 +185,7 @@ namespace NzbDrone.Core.MediaFiles
                 };
             }
 
-            var folderInfo = Parser.Parser.ParseTitle(directoryInfo.Name, _configService.ParseTvdbIdFromReleaseName);
+            var folderInfo = Parser.Parser.ParseTitle(directoryInfo.Name, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
             var videoFiles = _diskScanService.FilterPaths(directoryInfo.FullName, _diskScanService.GetVideoFiles(directoryInfo.FullName));
 
             if (downloadClientItem == null)

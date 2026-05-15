@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.Download.Aggregation;
 using NzbDrone.Core.Parser;
@@ -17,16 +18,19 @@ namespace Sonarr.Api.V3.Parse
         private readonly IRemoteEpisodeAggregationService _aggregationService;
         private readonly ICustomFormatCalculationService _formatCalculator;
         private readonly ISeriesResourceService _seriesResourceService;
+        private readonly IConfigService _configService;
 
         public ParseController(IParsingService parsingService,
                                IRemoteEpisodeAggregationService aggregationService,
                                ICustomFormatCalculationService formatCalculator,
-                               ISeriesResourceService seriesResourceService)
+                               ISeriesResourceService seriesResourceService,
+                               IConfigService configService)
         {
             _parsingService = parsingService;
             _aggregationService = aggregationService;
             _formatCalculator = formatCalculator;
             _seriesResourceService = seriesResourceService;
+            _configService = configService;
         }
 
         [HttpGet]
@@ -38,7 +42,9 @@ namespace Sonarr.Api.V3.Parse
                 return null;
             }
 
-            var parsedEpisodeInfo = path.IsNotNullOrWhiteSpace() ? Parser.ParsePath(path) : Parser.ParseTitle(title);
+            var parsedEpisodeInfo = path.IsNotNullOrWhiteSpace()
+                ? Parser.ParsePath(path, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne)
+                : Parser.ParseTitle(title, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
 
             if (parsedEpisodeInfo == null)
             {

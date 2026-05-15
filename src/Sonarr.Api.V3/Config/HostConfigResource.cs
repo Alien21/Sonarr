@@ -36,6 +36,7 @@ namespace Sonarr.Api.V3.Config
         public bool PreferDualAudio { get; set; }
         public bool AllowAutomaticImport { get; set; }
         public bool ParseTvdbIdFromReleaseName { get; set; }
+        public bool ParseEpisodeNumberOnlyAsSeasonOne { get; set; }
         public bool BlockAutoImportForExistingEpisodeFiles { get; set; }
         public bool AnalyzeCompletedDownloadFiles { get; set; }
         public bool UseSeriesInfoLanguage { get; set; }
@@ -88,6 +89,7 @@ namespace Sonarr.Api.V3.Config
                 PreferDualAudio = configService.PreferDualAudio,
                 AllowAutomaticImport = configService.AllowAutomaticImport,
                 ParseTvdbIdFromReleaseName = configService.ParseTvdbIdFromReleaseName,
+                ParseEpisodeNumberOnlyAsSeasonOne = configService.ParseEpisodeNumberOnlyAsSeasonOne,
                 BlockAutoImportForExistingEpisodeFiles = configService.BlockAutoImportForExistingEpisodeFiles,
                 AnalyzeCompletedDownloadFiles = configService.AnalyzeCompletedDownloadFiles,
                 UseSeriesInfoLanguage = configService.UseSeriesInfoLanguage,

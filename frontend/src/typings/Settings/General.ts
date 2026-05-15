@@ -32,6 +32,7 @@ export default interface General {
   preferDualAudio: boolean;
   allowAutomaticImport: boolean;
   parseTvdbIdFromReleaseName: boolean;
+  parseEpisodeNumberOnlyAsSeasonOne: boolean;
   blockAutoImportForExistingEpisodeFiles: boolean;
   analyzeCompletedDownloadFiles: boolean;
   useSeriesInfoLanguage: boolean;

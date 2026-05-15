@@ -47,7 +47,7 @@ namespace NzbDrone.Core.Parser
 
         public Series GetSeries(string title)
         {
-            var parsedEpisodeInfo = Parser.ParseTitle(title, _configService.ParseTvdbIdFromReleaseName);
+            var parsedEpisodeInfo = Parser.ParseTitle(title, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
 
             if (parsedEpisodeInfo == null)
             {
