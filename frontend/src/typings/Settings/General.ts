@@ -30,6 +30,7 @@ export default interface General {
   updateMechanism: UpdateMechanism;
   updateScriptPath: string;
   preferDualAudio: boolean;
+  allowAutomaticImport: boolean;
   parseTvdbIdFromReleaseName: boolean;
   blockAutoImportForExistingEpisodeFiles: boolean;
   analyzeCompletedDownloadFiles: boolean;

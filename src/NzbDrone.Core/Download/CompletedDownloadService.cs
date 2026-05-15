@@ -25,6 +25,7 @@ using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Tags;
 using NzbDrone.Core.Tv;
+using NzbDrone.Core.Tv.Translations;
 
 namespace NzbDrone.Core.Download
 {
@@ -195,6 +196,12 @@ namespace NzbDrone.Core.Download
 
             if (series == null)
             {
+                if (!AllowAutomaticImport(trackedDownload))
+                {
+                    AnalyzeCompletedDownloadFile(trackedDownload);
+                    return;
+                }
+
                 if (string.IsNullOrWhiteSpace(_configService.DefaultRootFolderForAutoImport))
                 {
                     AnalyzeCompletedDownloadFile(trackedDownload);
@@ -402,6 +409,11 @@ namespace NzbDrone.Core.Download
 
         private Series AddSeriesForAutoImport(TrackedDownload trackedDownload)
         {
+            if (!AllowAutomaticImport(trackedDownload))
+            {
+                return null;
+            }
+
             if (string.IsNullOrWhiteSpace(_configService.DefaultRootFolderForAutoImport))
             {
                 trackedDownload.Warn("Auto-import blocked: no default root folder configured for auto-import.");
@@ -495,6 +507,19 @@ namespace NzbDrone.Core.Download
             return null;
         }
 
+        private bool AllowAutomaticImport(TrackedDownload trackedDownload)
+        {
+            if (_configService.AllowAutomaticImport)
+            {
+                return true;
+            }
+
+            trackedDownload.Warn("Auto-import blocked: automatic import is disabled.");
+            _logger.Debug("Auto-import blocked: automatic import is disabled.");
+            SetStateToImportBlocked(trackedDownload);
+            return false;
+        }
+
         private Series FindSeriesForAutoImport(TrackedDownload trackedDownload, ParsedEpisodeInfo parsedEpisodeInfo)
         {
             if (parsedEpisodeInfo?.TvdbId != null)
@@ -560,6 +585,15 @@ namespace NzbDrone.Core.Download
                     }
                 }
             }
+            else if (series.Count > 1)
+            {
+                match = FindSingleExactTitleMatchWithoutPrefixConflicts(searchTerm, series);
+
+                if (match != null)
+                {
+                    _logger.Debug("Auto-import exact title match for '{0}' resolved to '{1}' tvdbid: {2}", trackedDownload.DownloadItem.Title, match.Title, match.TvdbId);
+                }
+            }
 
             if (match == null && series.Count == 1)
             {
@@ -575,6 +609,86 @@ namespace NzbDrone.Core.Download
             }
 
             return match;
+        }
+
+        private Series FindSingleExactTitleMatchWithoutPrefixConflicts(string searchTerm, List<Series> candidates)
+        {
+            var cleanTitle = Parser.Parser.CleanSeriesTitle(searchTerm);
+
+            if (cleanTitle.IsNullOrWhiteSpace())
+            {
+                return null;
+            }
+
+            var exactMatches = candidates
+                .Where(s => HasExactCleanTitle(s, cleanTitle))
+                .DistinctBy(s => s.TvdbId)
+                .ToList();
+
+            if (exactMatches.Count != 1)
+            {
+                if (exactMatches.Count > 1)
+                {
+                    _logger.Debug("Auto-import exact title match for '{0}' refused because multiple exact candidate series matched: {1}", searchTerm, FormatCandidateSeries(exactMatches));
+                }
+
+                return null;
+            }
+
+            var exactMatch = exactMatches.Single();
+            var prefixConflicts = candidates
+                .Where(s => s.TvdbId != exactMatch.TvdbId)
+                .Where(s => GetCleanTitles(s).Any(t => t.StartsWith(cleanTitle, StringComparison.Ordinal)))
+                .DistinctBy(s => s.TvdbId)
+                .ToList();
+
+            if (prefixConflicts.Any())
+            {
+                _logger.Debug("Auto-import exact title match for '{0}' refused because candidate title prefixes also matched: {1}", searchTerm, FormatCandidateSeries(prefixConflicts));
+                return null;
+            }
+
+            return exactMatch;
+        }
+
+        private static bool HasExactCleanTitle(Series series, string cleanTitle)
+        {
+            return GetCleanTitles(series).Any(t => t == cleanTitle);
+        }
+
+        private static IEnumerable<string> GetCleanTitles(Series series)
+        {
+            if (series.CleanTitle.IsNotNullOrWhiteSpace())
+            {
+                yield return series.CleanTitle;
+            }
+
+            if (series.Title.IsNotNullOrWhiteSpace())
+            {
+                yield return Parser.Parser.CleanSeriesTitle(series.Title);
+            }
+
+            foreach (var translation in series.Translations ?? Enumerable.Empty<SeriesTranslation>())
+            {
+                if (translation.CleanTitle.IsNotNullOrWhiteSpace())
+                {
+                    yield return translation.CleanTitle;
+                }
+
+                if (translation.Title.IsNotNullOrWhiteSpace())
+                {
+                    yield return Parser.Parser.CleanSeriesTitle(translation.Title);
+                }
+            }
+        }
+
+        private static string FormatCandidateSeries(IEnumerable<Series> series)
+        {
+            var matches = series
+                .Select(s => $"{s.Title} ({s.Year}) tvdbid: {s.TvdbId}")
+                .ToList();
+
+            return matches.Any() ? string.Join(", ", matches) : "none";
         }
 
         private string GetSeriesSearchTerm(TrackedDownload trackedDownload, ParsedEpisodeInfo parsedEpisodeInfo)

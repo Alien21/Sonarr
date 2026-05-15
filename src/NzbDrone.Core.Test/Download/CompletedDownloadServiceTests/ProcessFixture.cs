@@ -4,13 +4,17 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.EpisodeImport;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Profiles.Qualities;
+using NzbDrone.Core.Tags;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.Tv;
 using NzbDrone.Test.Common;
@@ -81,6 +85,96 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             Mocker.GetMock<IParsingService>()
                   .Setup(s => s.GetSeries(It.IsAny<string>()))
                   .Returns(_trackedDownload.RemoteEpisode.Series);
+        }
+
+        private void GivenAutomaticImportCanAddSeries()
+        {
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(s => s.AllowAutomaticImport)
+                  .Returns(true);
+
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(s => s.DefaultRootFolderForAutoImport)
+                  .Returns(@"C:\TV".AsOsAgnostic());
+
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(s => s.DefaultProfileForAutoImport)
+                  .Returns(1);
+
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(s => s.AnalyzeCompletedDownloadFiles)
+                  .Returns(false);
+
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(s => s.BlockAutoImportForExistingEpisodeFiles)
+                  .Returns(false);
+
+            Mocker.GetMock<IQualityProfileRepository>()
+                  .Setup(s => s.Get(1))
+                  .Returns(new QualityProfile { Id = 1 });
+
+            Mocker.GetMock<ISeriesService>()
+                  .Setup(s => s.FindByTvdbId(It.IsAny<int>()))
+                  .Returns((Series)null);
+
+            Mocker.GetMock<ITagService>()
+                  .Setup(s => s.All())
+                  .Returns(new List<Tag>());
+
+            Mocker.GetMock<ITagService>()
+                  .Setup(s => s.Add(It.IsAny<Tag>()))
+                  .Returns<Tag>(tag =>
+                  {
+                      tag.Id = 1;
+                      return tag;
+                  });
+
+            Mocker.GetMock<IAddSeriesService>()
+                  .Setup(s => s.AddSeries(It.IsAny<Series>()))
+                  .Returns<Series>(series =>
+                  {
+                      series.Id = 1;
+                      return series;
+                  });
+
+            Mocker.GetMock<IProvideSeriesInfo>()
+                  .Setup(s => s.GetSeriesInfo(It.IsAny<int>()))
+                  .Returns<int>(tvdbId => new System.Tuple<Series, List<Episode>>(new Series { TvdbId = tvdbId }, new List<Episode>()));
+
+            Mocker.GetMock<IParsingService>()
+                  .Setup(s => s.Map(It.IsAny<ParsedEpisodeInfo>(), It.IsAny<Series>()))
+                  .Returns<ParsedEpisodeInfo, Series>((parsedEpisodeInfo, series) => new RemoteEpisode
+                  {
+                      ParsedEpisodeInfo = parsedEpisodeInfo,
+                      Series = series,
+                      Episodes = new List<Episode>
+                      {
+                          new Episode { Id = 1, SeasonNumber = 1, EpisodeNumber = 1 }
+                      }
+                  });
+        }
+
+        private void GivenGoldLandDownload()
+        {
+            _trackedDownload.DownloadItem.Category = "tv";
+            _trackedDownload.DownloadItem.Title = "Gold.Land.S01E01.Betting.2160p.DSNP.WEB-DL.DDP5.1.DV.H.265-SCOPE.mkv";
+            _trackedDownload.RemoteEpisode.ParsedEpisodeInfo = new ParsedEpisodeInfo
+            {
+                ReleaseTitle = _trackedDownload.DownloadItem.Title,
+                SeriesTitle = "Gold Land",
+                SeriesTitleInfo = new SeriesTitleInfo
+                {
+                    Title = "Gold Land",
+                    TitleWithoutYear = "Gold Land"
+                },
+                SeasonNumber = 1,
+                EpisodeNumbers = new[] { 1 },
+                AbsoluteEpisodeNumbers = new int[0]
+            };
+
+            Mocker.GetMock<IParsingService>()
+                  .Setup(s => s.GetSeries(_trackedDownload.DownloadItem.Title))
+                  .Returns((Series)null);
         }
 
         private void GivenABadlyNamedDownload()
@@ -177,6 +271,79 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             Subject.Check(_trackedDownload);
 
             AssertNotReadyToImport();
+        }
+
+        [Test]
+        public void should_not_auto_import_unmatched_download_when_automatic_import_is_disabled()
+        {
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(s => s.AllowAutomaticImport)
+                  .Returns(false);
+
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(s => s.DefaultRootFolderForAutoImport)
+                  .Returns(@"C:\TV".AsOsAgnostic());
+
+            Mocker.GetMock<IParsingService>()
+                  .Setup(s => s.GetSeries("Drone.S01E01.HDTV"))
+                  .Returns((Series)null);
+
+            Subject.Check(_trackedDownload);
+
+            AssertNotReadyToImport();
+
+            Mocker.GetMock<ISearchForNewSeries>()
+                  .Verify(v => v.SearchForNewSeries(It.IsAny<string>()), Times.Never());
+        }
+
+        [Test]
+        public void should_auto_import_unmatched_download_when_multiple_lookup_results_have_one_exact_title_and_no_prefix_conflicts()
+        {
+            GivenGoldLandDownload();
+            GivenAutomaticImportCanAddSeries();
+
+            Mocker.GetMock<ISearchForNewSeries>()
+                  .Setup(s => s.SearchForNewSeries("Gold Land"))
+                  .Returns(new List<Series>
+                  {
+                      new Series { Title = "Gold Land", CleanTitle = "goldland", Year = 2026, TvdbId = 457275 },
+                      new Series { Title = "Gold Panda", CleanTitle = "goldpanda", Year = 2019, TvdbId = 407323 },
+                      new Series { Title = "Gold Panning", CleanTitle = "goldpanning", Year = 2022, TvdbId = 411195 }
+                  });
+
+            Subject.Check(_trackedDownload);
+
+            AssertReadyToImport();
+
+            Mocker.GetMock<IAddSeriesService>()
+                  .Verify(s => s.AddSeries(It.Is<Series>(series => series.TvdbId == 457275)), Times.Once());
+        }
+
+        [Test]
+        public void should_not_auto_import_unmatched_download_when_exact_title_has_prefix_conflicts()
+        {
+            GivenGoldLandDownload();
+            GivenAutomaticImportCanAddSeries();
+
+            Mocker.GetMock<ISearchForNewSeries>()
+                  .Setup(s => s.SearchForNewSeries("Gold Land"))
+                  .Returns(new List<Series>
+                  {
+                      new Series { Title = "Gold Land", CleanTitle = "goldland", Year = 2026, TvdbId = 457275 },
+                      new Series { Title = "GoldLand Stories", CleanTitle = "goldlandstories", Year = 2025, TvdbId = 457276 }
+                  });
+
+            Subject.Check(_trackedDownload);
+
+            AssertImportBlocked();
+
+            Mocker.GetMock<IAddSeriesService>()
+                  .Verify(s => s.AddSeries(It.IsAny<Series>()), Times.Never());
+        }
+
+        private void AssertImportBlocked()
+        {
+            _trackedDownload.State.Should().Be(TrackedDownloadState.ImportBlocked);
         }
 
         private void AssertNotReadyToImport()

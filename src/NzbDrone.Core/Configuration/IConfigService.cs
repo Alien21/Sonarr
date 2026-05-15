@@ -82,6 +82,7 @@ namespace NzbDrone.Core.Configuration
 
         // Extensions
         bool PreferDualAudio { get; }
+        bool AllowAutomaticImport { get; }
         bool ParseTvdbIdFromReleaseName { get; }
         bool BlockAutoImportForExistingEpisodeFiles { get; }
         bool AnalyzeCompletedDownloadFiles { get; }

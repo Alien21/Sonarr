@@ -34,6 +34,7 @@ namespace Sonarr.Api.V3.Config
         public UpdateMechanism UpdateMechanism { get; set; }
         public string UpdateScriptPath { get; set; }
         public bool PreferDualAudio { get; set; }
+        public bool AllowAutomaticImport { get; set; }
         public bool ParseTvdbIdFromReleaseName { get; set; }
         public bool BlockAutoImportForExistingEpisodeFiles { get; set; }
         public bool AnalyzeCompletedDownloadFiles { get; set; }
@@ -85,6 +86,7 @@ namespace Sonarr.Api.V3.Config
                 UpdateMechanism = model.UpdateMechanism,
                 UpdateScriptPath = model.UpdateScriptPath,
                 PreferDualAudio = configService.PreferDualAudio,
+                AllowAutomaticImport = configService.AllowAutomaticImport,
                 ParseTvdbIdFromReleaseName = configService.ParseTvdbIdFromReleaseName,
                 BlockAutoImportForExistingEpisodeFiles = configService.BlockAutoImportForExistingEpisodeFiles,
                 AnalyzeCompletedDownloadFiles = configService.AnalyzeCompletedDownloadFiles,

@@ -143,22 +143,16 @@ class MediaManagement extends Component {
       return Math.max(maxValue, (rootFolder.path || '').length);
     }, 0);
 
-    const defaultRootFolderForAutoImportOptions = [
-      {
-        key: '',
-        value: translate('DisableAutomaticImport')
-      },
-      ...rootFolderItems.map((rootFolder) => {
-        const freeSpaceValue = typeof rootFolder.freeSpace === 'number' ? rootFolder.freeSpace : 0;
-        const freeSpaceText = !rootFolder.accessible || rootFolder.freeSpace === undefined ? '-' : formatBytes(freeSpaceValue);
-        const paddedPath = (rootFolder.path || '').padEnd(maxPathLength, '\u00A0');
+    const defaultRootFolderForAutoImportOptions = rootFolderItems.map((rootFolder) => {
+      const freeSpaceValue = typeof rootFolder.freeSpace === 'number' ? rootFolder.freeSpace : 0;
+      const freeSpaceText = !rootFolder.accessible || rootFolder.freeSpace === undefined ? '-' : formatBytes(freeSpaceValue);
+      const paddedPath = (rootFolder.path || '').padEnd(maxPathLength, '\u00A0');
 
-        return {
-          key: rootFolder.path,
-          value: `${paddedPath}\u00A0\u00A0(${freeSpaceText})`
-        };
-      })
-    ];
+      return {
+        key: rootFolder.path,
+        value: `${paddedPath}\u00A0\u00A0(${freeSpaceText})`
+      };
+    });
 
     const hasRootFolders = rootFolderItems.length > 0;
 

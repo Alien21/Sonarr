@@ -12,6 +12,7 @@ function ExtensionsSettings(props) {
 
   const {
     preferDualAudio,
+    allowAutomaticImport,
     parseTvdbIdFromReleaseName,
     blockAutoImportForExistingEpisodeFiles,
     analyzeCompletedDownloadFiles,
@@ -30,6 +31,18 @@ function ExtensionsSettings(props) {
           helpText={translate('PreferDualAudioHelpText')}
           onChange={onInputChange}
           {...preferDualAudio}
+        />
+      </FormGroup>
+
+      <FormGroup size={sizes.MEDIUM}>
+        <FormLabel>{translate('AllowAutomaticImport')}</FormLabel>
+
+        <FormInputGroup
+          type={inputTypes.CHECK}
+          name="allowAutomaticImport"
+          helpText={translate('AllowAutomaticImportHelpText')}
+          onChange={onInputChange}
+          {...allowAutomaticImport}
         />
       </FormGroup>
 

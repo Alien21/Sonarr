@@ -509,6 +509,8 @@
     "Extensions": "Rozšíření",
     "PreferDualAudio": "Preferovat duální audio",
     "PreferDualAudioHelpText": "Preferuje dokončená stahování s audiem v nastaveném jazyce informací o seriálech a dalším audio jazykem při nahrazování existujících souborů epizod, které ještě preferované duální audio nemají. Soubory stejné nebo lepší kvality se mohou importovat automaticky, pokud nejsou o více než 30 % menší; nižší kvalita nebo výrazně menší soubory zůstanou ve frontě k ruční kontrole.",
+    "AllowAutomaticImport": "Povolit automatický import",
+    "AllowAutomaticImportHelpText": "Povolí Sonarru rozpoznat nespárovaná dokončená stahování, přidat odpovídající seriál pomocí nastaveného adresáře a profilu kvality pro automatický import a automaticky ho importovat. Pokud je vypnuto, automaticky se importují jen stahování už spárovaná s existujícím seriálem.",
     "ParseTvdbIdFromReleaseName": "Načítat TVDB ID z názvu releasu",
     "ParseTvdbIdFromReleaseNameHelpText": "Použije značky typu tvdb:12345 v názvech releasů a nadřazených složkách pro nalezení seriálu podle TVDB ID před běžným rozpoznáním podle názvu nebo aliasu. Ve výchozím stavu je vypnuto.",
     "SeriesInfoLanguage": "Jazyk informací o seriálech",
@@ -540,6 +542,5 @@
     "DeleteSpecificationHelpText": "Opravdu smazat specifikaci '{name}'?",
     "DownloadClientStatusAllClientHealthCheckMessage": "Všichni klienti pro stahování jsou nedostupní z důvodu selhání",
     "DownloadClientStatusSingleClientHealthCheckMessage": "Klienti pro stahování jsou nedostupní z důvodu selhání: {downloadClientNames}",
-    "DownloadClientTransmissionSettingsUrlBaseHelpText": "Přidá předponu k url {clientName} rpc, např. {url}, výchozí hodnota je ‚{defaultUrl}‘",
-    "DisableAutomaticImport": "Vypnout automatický import"
+    "DownloadClientTransmissionSettingsUrlBaseHelpText": "Přidá předponu k url {clientName} rpc, např. {url}, výchozí hodnota je ‚{defaultUrl}‘"
 }

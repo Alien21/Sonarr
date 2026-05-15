@@ -386,6 +386,8 @@ namespace NzbDrone.Core.Configuration
 
         public bool PreferDualAudio => GetValueBoolean("PreferDualAudio", false);
 
+        public bool AllowAutomaticImport => GetValueBoolean("AllowAutomaticImport", false);
+
         public bool ParseTvdbIdFromReleaseName => GetValueBoolean("ParseTvdbIdFromReleaseName", false);
 
         public bool BlockAutoImportForExistingEpisodeFiles => GetValueBoolean("BlockAutoImportForExistingEpisodeFiles", false);
