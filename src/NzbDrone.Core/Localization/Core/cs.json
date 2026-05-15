@@ -248,6 +248,11 @@
     "DeleteCustomFormatMessageText": "Opravdu chcete odstranit vlastní formát '{name}'?",
     "DefaultNameCopiedProfile": "{name} - Kopírovat",
     "DefaultNameCopiedSpecification": "{name} - Kopírovat",
+    "DefaultRootFolderForAutoImport": "Adresář pro automatický import",
+    "DefaultRootFolderForAutoImportHelpText": "Tento adresář se použije při automatickém importu",
+    "SetRootFolderForAutoImport": "Nastaví tento adresář jako výchozí adresář při automatickém importu",
+    "DefaultProfileForAutoImport": "Profil kvality pro automatický import",
+    "AutoImport": "AutoImport",
     "DefaultNotFoundMessage": "Asi jsi se ztratil, není tu nic k vidění.",
     "DelayProfile": "Profil zpoždění",
     "DelayProfileProtocol": "Protokol: {preferredProtocol}",
@@ -318,6 +323,7 @@
     "EditSelectedImportLists": "Upravit vybrané seznamy k importu",
     "FormatDateTime": "{formattedDate} {formattedTime}",
     "AddRootFolderError": "Nepodařilo se přidat kořenový adresář",
+    "NoRootFolders": "Žádné kořenové složky",
     "DownloadClientRemovesCompletedDownloadsHealthCheckMessage": "Klient stahování {downloadClientName} je nastaven na odstranění dokončených stahování. To může vést k tomu, že stahování budou z klienta odstraněna dříve, než je bude moci importovat {appName}.",
     "ConnectionSettingsUrlBaseHelpText": "Přidá předponu do {connectionName} url, jako např. {url}",
     "CustomFormatsSpecificationRegularExpressionHelpText": "Vlastní formát RegEx nerozlišuje velká a malá písmena",
@@ -520,5 +526,6 @@
     "DeleteSpecificationHelpText": "Opravdu smazat specifikaci '{name}'?",
     "DownloadClientStatusAllClientHealthCheckMessage": "Všichni klienti pro stahování jsou nedostupní z důvodu selhání",
     "DownloadClientStatusSingleClientHealthCheckMessage": "Klienti pro stahování jsou nedostupní z důvodu selhání: {downloadClientNames}",
-    "DownloadClientTransmissionSettingsUrlBaseHelpText": "Přidá předponu k url {clientName} rpc, např. {url}, výchozí hodnota je ‚{defaultUrl}‘"
+    "DownloadClientTransmissionSettingsUrlBaseHelpText": "Přidá předponu k url {clientName} rpc, např. {url}, výchozí hodnota je ‚{defaultUrl}‘",
+    "DisableAutomaticImport": "Vypnout automatický import"
 }

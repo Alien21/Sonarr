@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using FluentValidation;
 using NLog;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
@@ -12,8 +13,11 @@ using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.EpisodeImport;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Profiles.Qualities;
+using NzbDrone.Core.Tags;
 using NzbDrone.Core.Tv;
 
 namespace NzbDrone.Core.Download
@@ -38,6 +42,12 @@ namespace NzbDrone.Core.Download
         private readonly IMediaFileService _mediaFileService;
         private readonly IRejectedImportService _rejectedImportService;
         private readonly IConfigService _configService;
+        private readonly ISearchForNewSeries _searchProxy;
+        private readonly IAddSeriesService _addSeriesService;
+        private readonly IQualityProfileRepository _qualityProfileRepository;
+        private readonly ITagService _tagService;
+        private readonly IProvideSeriesInfo _seriesInfo;
+        private readonly IRefreshEpisodeService _refreshEpisodeService;
         private readonly Logger _logger;
 
         public CompletedDownloadService(IEventAggregator eventAggregator,
@@ -50,6 +60,12 @@ namespace NzbDrone.Core.Download
                                         IEpisodeService episodeService,
                                         IMediaFileService mediaFileService,
                                         IRejectedImportService rejectedImportService,
+                                        ISearchForNewSeries searchProxy,
+                                        IAddSeriesService addSeriesService,
+                                        IQualityProfileRepository qualityProfileRepository,
+                                        ITagService tagService,
+                                        IProvideSeriesInfo seriesInfo,
+                                        IRefreshEpisodeService refreshEpisodeService,
                                         IConfigService configService,
                                         Logger logger)
         {
@@ -63,6 +79,12 @@ namespace NzbDrone.Core.Download
             _episodeService = episodeService;
             _mediaFileService = mediaFileService;
             _rejectedImportService = rejectedImportService;
+            _searchProxy = searchProxy;
+            _addSeriesService = addSeriesService;
+            _qualityProfileRepository = qualityProfileRepository;
+            _tagService = tagService;
+            _seriesInfo = seriesInfo;
+            _refreshEpisodeService = refreshEpisodeService;
             _configService = configService;
             _logger = logger;
         }
@@ -98,14 +120,55 @@ namespace NzbDrone.Core.Download
 
             var series = _parsingService.GetSeries(trackedDownload.DownloadItem.Title);
 
+            if (series != null)
+            {
+                AttachExistingSeries(trackedDownload, series);
+            }
+
+            if (series == null && historyItem != null)
+            {
+                series = _seriesService.GetSeries(historyItem.SeriesId);
+
+                if (series != null)
+                {
+                    Enum.TryParse(historyItem.Data.GetValueOrDefault(EpisodeHistory.SERIES_MATCH_TYPE, SeriesMatchType.Unknown.ToString()), out SeriesMatchType seriesMatchType);
+                    Enum.TryParse(historyItem.Data.GetValueOrDefault(EpisodeHistory.RELEASE_SOURCE, ReleaseSourceType.Unknown.ToString()), out ReleaseSourceType releaseSource);
+
+                    // Show a warning if the release was matched by ID and the source is not interactive search
+                    if (seriesMatchType == SeriesMatchType.Id && releaseSource != ReleaseSourceType.InteractiveSearch)
+                    {
+                        trackedDownload.Warn("Found matching series via grab history, but release was matched to series by ID. Automatic import is not possible. See the FAQ for details.");
+                        SetStateToImportBlocked(trackedDownload);
+
+                        return;
+                    }
+
+                    AttachExistingSeries(trackedDownload, series);
+                }
+            }
+
+            if (trackedDownload.RemoteEpisode == null)
+            {
+                var parsed = Parser.Parser.ParseTitle(trackedDownload.DownloadItem.Title, _configService.ParseTvdbIdFromReleaseName);
+
+                if (parsed != null)
+                {
+                    trackedDownload.RemoteEpisode = _parsingService.Map(parsed, 0, 0, null);
+                }
+            }
+
+            if (trackedDownload.RemoteEpisode == null)
+            {
+                trackedDownload.Warn("Auto-import blocked: unable to resolve {0} download to a series.", trackedDownload.ImportItem?.Title);
+                _logger.Debug("Auto-import blocked: unable to resolve {0} download to a series.", trackedDownload.ImportItem?.Title);
+                SetStateToImportBlocked(trackedDownload);
+
+                return;
+            }
+
             if (series == null)
             {
-                if (historyItem != null)
-                {
-                    series = _seriesService.GetSeries(historyItem.SeriesId);
-                }
-
-                if (series == null)
+                if (string.IsNullOrWhiteSpace(_configService.DefaultRootFolderForAutoImport))
                 {
                     trackedDownload.Warn("Series title mismatch; automatic import is not possible. Check the download troubleshooting entry on the wiki for common causes.");
                     SetStateToImportBlocked(trackedDownload);
@@ -113,15 +176,10 @@ namespace NzbDrone.Core.Download
                     return;
                 }
 
-                Enum.TryParse(historyItem.Data.GetValueOrDefault(EpisodeHistory.SERIES_MATCH_TYPE, SeriesMatchType.Unknown.ToString()), out SeriesMatchType seriesMatchType);
-                Enum.TryParse(historyItem.Data.GetValueOrDefault(EpisodeHistory.RELEASE_SOURCE, ReleaseSourceType.Unknown.ToString()), out ReleaseSourceType releaseSource);
+                series = AddSeriesForAutoImport(trackedDownload);
 
-                // Show a warning if the release was matched by ID and the source is not interactive search
-                if (seriesMatchType == SeriesMatchType.Id && releaseSource != ReleaseSourceType.InteractiveSearch)
+                if (series == null)
                 {
-                    trackedDownload.Warn("Found matching series via grab history, but release was matched to series by ID. Automatic import is not possible. See the FAQ for details.");
-                    SetStateToImportBlocked(trackedDownload);
-
                     return;
                 }
             }
@@ -130,6 +188,8 @@ namespace NzbDrone.Core.Download
             {
                 return;
             }
+
+            _logger.Debug("Set State='{0}' for series '{1}' tvdbid: {2}", TrackedDownloadState.ImportPending, series.Title, series.TvdbId);
 
             trackedDownload.State = TrackedDownloadState.ImportPending;
         }
@@ -304,6 +364,223 @@ namespace NzbDrone.Core.Download
         private void SetImportItem(TrackedDownload trackedDownload)
         {
             trackedDownload.ImportItem = _provideImportItemService.ProvideImportItem(trackedDownload.DownloadItem, trackedDownload.ImportItem);
+        }
+
+        private Series AddSeriesForAutoImport(TrackedDownload trackedDownload)
+        {
+            if (string.IsNullOrWhiteSpace(_configService.DefaultRootFolderForAutoImport))
+            {
+                trackedDownload.Warn("Auto-import blocked: no default root folder configured for auto-import.");
+                _logger.Debug("Auto-import blocked: no default root folder configured for auto-import.");
+                SetStateToImportBlocked(trackedDownload);
+                return null;
+            }
+
+            QualityProfile profile;
+            profile = _configService.DefaultProfileForAutoImport == -1 ? _qualityProfileRepository.All().FirstOrDefault() : _qualityProfileRepository.Get(_configService.DefaultProfileForAutoImport);
+
+            if (profile == null)
+            {
+                trackedDownload.Warn("Auto-import blocked: default quality profile not found (id: {0}).", _configService.DefaultProfileForAutoImport);
+                _logger.Debug("Auto-import blocked: default quality profile not found (id: {0}).", _configService.DefaultProfileForAutoImport);
+                SetStateToImportBlocked(trackedDownload);
+                return null;
+            }
+
+            var parsedEpisodeInfo = trackedDownload.RemoteEpisode.ParsedEpisodeInfo;
+            var series = FindSeriesForAutoImport(trackedDownload, parsedEpisodeInfo);
+
+            if (series == null)
+            {
+                return null;
+            }
+
+            var existingSeries = _seriesService.FindByTvdbId(series.TvdbId);
+
+            if (existingSeries != null)
+            {
+                _logger.Debug("Joining series '{0}' tvdbid: {1} to existing series '{2}'", series.Title, series.TvdbId, existingSeries.Path);
+
+                AttachExistingSeries(trackedDownload, existingSeries);
+                return existingSeries;
+            }
+
+            _logger.Debug("Autocreate series '{0}' tvdbid: {1}", series.Title, series.TvdbId);
+
+            var tag = _tagService.All().Where(t => t.Label.EqualsIgnoreCase("autocreated")).ToList().FirstOrDefault();
+            if (tag == null)
+            {
+                tag = new Tag
+                {
+                    Label = "autocreated"
+                };
+                tag = _tagService.Add(tag);
+            }
+
+            series.Monitored = true;
+            series.MonitorNewItems = NewItemMonitorTypes.All;
+            series.Tags.Add(tag.Id);
+            series.QualityProfile = profile;
+            series.QualityProfileId = profile.Id;
+            series.RootFolderPath = _configService.DefaultRootFolderForAutoImport;
+            series.SeasonFolder = true;
+            series.AddOptions = new AddSeriesOptions
+            {
+                Monitor = MonitorTypes.All,
+                SearchForMissingEpisodes = false,
+                SearchForCutoffUnmetEpisodes = false
+            };
+
+            try
+            {
+                var newSeries = _addSeriesService.AddSeries(series);
+
+                if (newSeries != null)
+                {
+                    newSeries.QualityProfile = profile;
+                    newSeries.QualityProfileId = profile.Id;
+
+                    RefreshEpisodesForNewSeries(newSeries);
+                    EnsureRemoteEpisode(trackedDownload, newSeries);
+                    trackedDownload.ClearStatus();
+
+                    return newSeries;
+                }
+            }
+            catch (ValidationException ex)
+            {
+                trackedDownload.Warn("Auto-import blocked: failed to add series '{0}' (tvdbid: {1}). {2}", series.Title, series.TvdbId, ex.Message);
+                _logger.Debug(ex, "Auto-import blocked: failed to add series '{0}' tvdbid: {1}.", series.Title, series.TvdbId);
+                SetStateToImportBlocked(trackedDownload);
+                return null;
+            }
+
+            trackedDownload.Warn("Auto-import blocked: failed to add series '{0}' (tvdbid: {1}).", series.Title, series.TvdbId);
+            _logger.Debug("Auto-import blocked: failed to add series '{0}' tvdbid: {1}.", series.Title, series.TvdbId);
+            SetStateToImportBlocked(trackedDownload);
+            return null;
+        }
+
+        private Series FindSeriesForAutoImport(TrackedDownload trackedDownload, ParsedEpisodeInfo parsedEpisodeInfo)
+        {
+            if (parsedEpisodeInfo?.TvdbId != null)
+            {
+                var tvdbSeries = _seriesService.FindByTvdbId(parsedEpisodeInfo.TvdbId.Value);
+
+                if (tvdbSeries != null)
+                {
+                    return tvdbSeries;
+                }
+
+                var tvdbMatches = _searchProxy.SearchForNewSeries($"tvdb:{parsedEpisodeInfo.TvdbId.Value}");
+
+                if (tvdbMatches.Count == 1)
+                {
+                    return tvdbMatches.First();
+                }
+
+                trackedDownload.Warn("Auto-import blocked: no unique series match for '{0}' (tvdbid: {1}).", trackedDownload.DownloadItem.Title, parsedEpisodeInfo.TvdbId.Value);
+                _logger.Debug("Auto-import blocked: no unique series match for '{0}' (tvdbid: {1}).", trackedDownload.DownloadItem.Title, parsedEpisodeInfo.TvdbId.Value);
+                SetStateToImportBlocked(trackedDownload);
+                return null;
+            }
+
+            var searchTerm = GetSeriesSearchTerm(trackedDownload, parsedEpisodeInfo);
+            var series = _searchProxy.SearchForNewSeries(searchTerm);
+
+            if (series == null || series.Count <= 0)
+            {
+                trackedDownload.Warn("Auto-import blocked: no series match found for '{0}'.", trackedDownload.DownloadItem.Title);
+                _logger.Debug("Auto-import blocked: no series match found for '{0}'.", trackedDownload.DownloadItem.Title);
+                SetStateToImportBlocked(trackedDownload);
+                return null;
+            }
+
+            var parsedYear = parsedEpisodeInfo?.SeriesTitleInfo?.Year ?? 0;
+            Series match = null;
+
+            if (parsedYear > 1890 && series.Count(s => s.Year == parsedYear) == 1)
+            {
+                match = series.First(s => s.Year == parsedYear);
+            }
+
+            if (match == null && series.Count == 1)
+            {
+                match = series.First();
+            }
+
+            if (match == null)
+            {
+                trackedDownload.Warn("Auto-import blocked: no unique series match for '{0}' (parsed year: {1}).", trackedDownload.DownloadItem.Title, parsedYear);
+                _logger.Debug("Auto-import blocked: no unique series match for '{0}' (parsed year: {1}).", trackedDownload.DownloadItem.Title, parsedYear);
+                SetStateToImportBlocked(trackedDownload);
+                return null;
+            }
+
+            return match;
+        }
+
+        private string GetSeriesSearchTerm(TrackedDownload trackedDownload, ParsedEpisodeInfo parsedEpisodeInfo)
+        {
+            if (parsedEpisodeInfo?.SeriesTitleInfo?.TitleWithoutYear.IsNotNullOrWhiteSpace() == true)
+            {
+                return parsedEpisodeInfo.SeriesTitleInfo.TitleWithoutYear;
+            }
+
+            if (parsedEpisodeInfo?.SeriesTitle.IsNotNullOrWhiteSpace() == true)
+            {
+                return parsedEpisodeInfo.SeriesTitle;
+            }
+
+            return Path.GetFileName(trackedDownload.DownloadItem.Title);
+        }
+
+        private void RefreshEpisodesForNewSeries(Series series)
+        {
+            try
+            {
+                var seriesInfo = _seriesInfo.GetSeriesInfo(series.TvdbId);
+                _refreshEpisodeService.RefreshEpisodeInfo(series, seriesInfo.Item2);
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "Unable to refresh episodes for auto-created series '{0}' before import.", series.Title);
+            }
+        }
+
+        private void AttachExistingSeries(TrackedDownload trackedDownload, Series series)
+        {
+            EnsureRemoteEpisode(trackedDownload, series);
+
+            trackedDownload.ClearStatus();
+
+            trackedDownload.State = TrackedDownloadState.ImportPending;
+        }
+
+        private void EnsureRemoteEpisode(TrackedDownload trackedDownload, Series series)
+        {
+            var release = trackedDownload.RemoteEpisode?.Release;
+            var customFormats = trackedDownload.RemoteEpisode?.CustomFormats;
+            var parsedEpisodeInfo = trackedDownload.RemoteEpisode?.ParsedEpisodeInfo ?? Parser.Parser.ParseTitle(trackedDownload.DownloadItem.Title, _configService.ParseTvdbIdFromReleaseName);
+
+            if (parsedEpisodeInfo != null)
+            {
+                var remoteEpisode = _parsingService.Map(parsedEpisodeInfo, series);
+
+                if (remoteEpisode != null)
+                {
+                    trackedDownload.RemoteEpisode = remoteEpisode;
+                }
+            }
+
+            if (trackedDownload.RemoteEpisode == null)
+            {
+                trackedDownload.RemoteEpisode = new RemoteEpisode();
+            }
+
+            trackedDownload.RemoteEpisode.Series ??= series;
+            trackedDownload.RemoteEpisode.Release ??= release;
+            trackedDownload.RemoteEpisode.CustomFormats = customFormats ?? trackedDownload.RemoteEpisode.CustomFormats;
         }
 
         private bool BlockAutoImportForExistingEpisodeFiles(TrackedDownload trackedDownload)

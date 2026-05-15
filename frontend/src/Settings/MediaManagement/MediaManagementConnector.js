@@ -5,6 +5,7 @@ import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
 import { clearPendingChanges } from 'Store/Actions/baseActions';
 import { fetchMediaManagementSettings, saveMediaManagementSettings, saveNamingSettings, setMediaManagementSettingsValue } from 'Store/Actions/settingsActions';
+import createRootFoldersSelector from 'Store/Selectors/createRootFoldersSelector';
 import createSettingsSectionSelector from 'Store/Selectors/createSettingsSectionSelector';
 import createSystemStatusSelector from 'Store/Selectors/createSystemStatusSelector';
 import MediaManagement from './MediaManagement';
@@ -17,10 +18,12 @@ function createMapStateToProps() {
     (state) => state.settings.naming,
     createSettingsSectionSelector(SECTION),
     createSystemStatusSelector(),
-    (advancedSettings, namingSettings, sectionSettings, systemStatus) => {
+    createRootFoldersSelector(),
+    (advancedSettings, namingSettings, sectionSettings, systemStatus, rootFolders) => {
       return {
         advancedSettings,
         ...sectionSettings,
+        rootFolders,
         hasPendingChanges: !_.isEmpty(namingSettings.pendingChanges) || sectionSettings.hasPendingChanges,
         isWindows: systemStatus.isWindows
       };

@@ -39,6 +39,8 @@ namespace NzbDrone.Core.Configuration
         string ScriptImportPath { get; set; }
         bool ImportExtraFiles { get; set; }
         string ExtraFileExtensions { get; set; }
+        string DefaultRootFolderForAutoImport { get; set; }
+        int DefaultProfileForAutoImport { get; set; }
         RescanAfterRefreshType RescanAfterRefresh { get; set; }
         EpisodeTitleRequiredType EpisodeTitleRequired { get; set; }
 

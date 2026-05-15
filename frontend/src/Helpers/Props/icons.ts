@@ -65,6 +65,7 @@ import {
   faFilter as fasFilter,
   faFlag as fasFlag,
   faFolderOpen as fasFolderOpen,
+  faFolderPlus as fasFolderPlus,
   faFolderTree as farFolderTree,
   faForward as fasForward,
   faHeart as fasHeart,
@@ -163,6 +164,7 @@ export const FLAG = fasFlag;
 export const FOOTNOTE = fasAsterisk;
 export const FOLDER = farFolder;
 export const FOLDER_OPEN = fasFolderOpen;
+export const FOLDER_PLUS = fasFolderPlus;
 export const GENRE = fasTheaterMasks;
 export const GROUP = farObjectGroup;
 export const HEALTH = fasMedkit;

@@ -7,8 +7,15 @@ import TableBody from 'Components/Table/TableBody';
 import { kinds } from 'Helpers/Props';
 import { fetchRootFolders } from 'Store/Actions/rootFolderActions';
 import createRootFoldersSelector from 'Store/Selectors/createRootFoldersSelector';
+import SetRootFolderForAutoImportCallback from 'typings/SetRootFolderForAutoImportCallback';
 import translate from 'Utilities/String/translate';
 import RootFolderRow from './RootFolderRow';
+
+const autoImportColumn = {
+  name: 'autoImport',
+  label: () => translate('AutoImport'),
+  isVisible: true,
+};
 
 const rootFolderColumns = [
   {
@@ -32,10 +39,20 @@ const rootFolderColumns = [
   },
 ];
 
-function RootFolders() {
+interface RootFoldersProps {
+  onSetRootFolderForAutoImportPress?: SetRootFolderForAutoImportCallback;
+}
+
+function RootFolders(props: RootFoldersProps) {
+  const { onSetRootFolderForAutoImportPress } = props;
   const { isFetching, isPopulated, error, items } = useSelector(
     createRootFoldersSelector()
   );
+  const showAutoImportAction =
+    typeof onSetRootFolderForAutoImportPress === 'function';
+  const columns = showAutoImportAction
+    ? [autoImportColumn, ...rootFolderColumns]
+    : rootFolderColumns;
 
   const dispatch = useDispatch();
 
@@ -54,7 +71,7 @@ function RootFolders() {
   }
 
   return (
-    <Table columns={rootFolderColumns}>
+    <Table columns={columns}>
       <TableBody>
         {items.map((rootFolder) => {
           return (
@@ -65,6 +82,9 @@ function RootFolders() {
               accessible={rootFolder.accessible}
               freeSpace={rootFolder.freeSpace}
               unmappedFolders={rootFolder.unmappedFolders}
+              onSetRootFolderForAutoImportPress={
+                onSetRootFolderForAutoImportPress
+              }
             />
           );
         })}

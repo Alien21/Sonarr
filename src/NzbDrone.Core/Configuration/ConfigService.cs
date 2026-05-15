@@ -250,6 +250,20 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("RescanAfterRefresh", value); }
         }
 
+        public string DefaultRootFolderForAutoImport
+        {
+            get { return GetValue("DefaultRootFolderForAutoImport", string.Empty); }
+
+            set { SetValue("DefaultRootFolderForAutoImport", value); }
+        }
+
+        public int DefaultProfileForAutoImport
+        {
+            get { return GetValueInt("DefaultProfileForAutoImport", -1); }
+
+            set { SetValue("DefaultProfileForAutoImport", value); }
+        }
+
         public EpisodeTitleRequiredType EpisodeTitleRequired
         {
             get { return GetValueEnum("EpisodeTitleRequired", EpisodeTitleRequiredType.Always); }
