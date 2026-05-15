@@ -101,12 +101,6 @@ namespace NzbDrone.Core.Queue
 
         private List<Language> GetQueueLanguages(TrackedDownload trackedDownload, Episode episode)
         {
-            var languages = trackedDownload.RemoteEpisode?.Languages;
-            if (HasKnownLanguages(languages))
-            {
-                return languages;
-            }
-
             if (episode != null &&
                 trackedDownload.AnalyzedEpisodeFiles?.TryGetValue(episode.Id, out var analyzedEpisode) == true &&
                 HasKnownLanguages(analyzedEpisode.Languages))
@@ -117,6 +111,12 @@ namespace NzbDrone.Core.Queue
             if (HasKnownLanguages(trackedDownload.AnalyzedLanguages))
             {
                 return trackedDownload.AnalyzedLanguages;
+            }
+
+            var languages = trackedDownload.RemoteEpisode?.Languages;
+            if (HasKnownLanguages(languages))
+            {
+                return languages;
             }
 
             return new List<Language> { Language.Unknown };
@@ -141,12 +141,6 @@ namespace NzbDrone.Core.Queue
 
         private QualityModel GetQueueQuality(TrackedDownload trackedDownload, Episode episode)
         {
-            var quality = trackedDownload.RemoteEpisode?.ParsedEpisodeInfo?.Quality;
-            if (quality != null && quality.Quality != Quality.Unknown)
-            {
-                return quality;
-            }
-
             if (episode != null &&
                 trackedDownload.AnalyzedEpisodeFiles?.TryGetValue(episode.Id, out var analyzedEpisode) == true &&
                 analyzedEpisode.Quality != null &&
@@ -159,6 +153,12 @@ namespace NzbDrone.Core.Queue
                 trackedDownload.AnalyzedQuality.Quality != Quality.Unknown)
             {
                 return trackedDownload.AnalyzedQuality;
+            }
+
+            var quality = trackedDownload.RemoteEpisode?.ParsedEpisodeInfo?.Quality;
+            if (quality != null && quality.Quality != Quality.Unknown)
+            {
+                return quality;
             }
 
             return new QualityModel(Quality.Unknown);
