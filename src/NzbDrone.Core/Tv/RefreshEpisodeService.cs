@@ -15,6 +15,9 @@ namespace NzbDrone.Core.Tv
 
     public class RefreshEpisodeService : IRefreshEpisodeService
     {
+        private static readonly object RefreshLocksSyncRoot = new object();
+        private static readonly Dictionary<int, object> RefreshLocks = new Dictionary<int, object>();
+
         private readonly IEpisodeService _episodeService;
         private readonly IEventAggregator _eventAggregator;
         private readonly Logger _logger;
@@ -27,6 +30,30 @@ namespace NzbDrone.Core.Tv
         }
 
         public void RefreshEpisodeInfo(Series series, IEnumerable<Episode> remoteEpisodes)
+        {
+            lock (GetRefreshLock(series))
+            {
+                RefreshEpisodeInfoInternal(series, remoteEpisodes);
+            }
+        }
+
+        private static object GetRefreshLock(Series series)
+        {
+            var key = series.Id > 0 ? series.Id : series.TvdbId;
+
+            lock (RefreshLocksSyncRoot)
+            {
+                if (!RefreshLocks.TryGetValue(key, out var refreshLock))
+                {
+                    refreshLock = new object();
+                    RefreshLocks[key] = refreshLock;
+                }
+
+                return refreshLock;
+            }
+        }
+
+        private void RefreshEpisodeInfoInternal(Series series, IEnumerable<Episode> remoteEpisodes)
         {
             _logger.Info("Starting episode info refresh for: {0}", series);
             var successCount = 0;
