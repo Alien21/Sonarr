@@ -71,10 +71,11 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
                 }
             }
 
-            var episodes = httpResponse.Resource.Episodes.Select(MapEpisode);
+            var episodes = httpResponse.Resource.Episodes.Select(MapEpisode).ToList();
             var series = MapSeries(httpResponse.Resource);
+            AddSeriesInfoLanguageEpisodeTranslations(series, episodes);
 
-            return new Tuple<Series, List<Episode>>(series, episodes.ToList());
+            return new Tuple<Series, List<Episode>>(series, episodes);
         }
 
         public List<Series> SearchForNewSeriesByImdbId(string imdbId)
@@ -457,6 +458,43 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             }
 
             return language;
+        }
+
+        private void AddSeriesInfoLanguageEpisodeTranslations(Series series, List<Episode> episodes)
+        {
+            var seriesInfoLanguage = GetSeriesInfoLanguage(series);
+
+            if (seriesInfoLanguage == Language.English)
+            {
+                return;
+            }
+
+            var translations = _seriesTranslationProxy.GetEpisodeTranslations(series.TvdbId, seriesInfoLanguage)
+                                                       .Where(e => e.TvdbId > 0)
+                                                       .ToDictionary(e => e.TvdbId);
+
+            if (!translations.Any())
+            {
+                return;
+            }
+
+            foreach (var episode in episodes)
+            {
+                if (!translations.TryGetValue(episode.TvdbId, out var translation))
+                {
+                    continue;
+                }
+
+                if (translation.Title.IsNotNullOrWhiteSpace())
+                {
+                    episode.Title = translation.Title;
+                }
+
+                if (translation.Overview.IsNotNullOrWhiteSpace())
+                {
+                    episode.Overview = translation.Overview;
+                }
+            }
         }
 
         private static Actor MapActors(ActorResource arg)

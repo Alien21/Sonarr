@@ -11,6 +11,7 @@ using NzbDrone.Common.Serializer;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Languages;
 using NzbDrone.Core.Parser;
+using NzbDrone.Core.Tv;
 using NzbDrone.Core.Tv.Translations;
 
 namespace NzbDrone.Core.MetadataSource.SkyHook
@@ -18,6 +19,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
     public interface IFetchSeriesTranslations
     {
         List<SeriesTranslation> GetTranslations(int tvdbId, Language language);
+        List<Episode> GetEpisodeTranslations(int tvdbId, Language language);
         List<int> SearchSeries(string title, Language language);
     }
 
@@ -27,6 +29,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
         private readonly IConfigService _configService;
         private readonly ICached<string> _tokenCache;
         private readonly ICached<List<SeriesTranslation>> _cache;
+        private readonly ICached<List<Episode>> _episodeCache;
         private readonly ICached<List<int>> _searchCache;
         private readonly Logger _logger;
 
@@ -39,6 +42,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             _configService = configService;
             _tokenCache = cacheManager.GetCache<string>(GetType(), "token");
             _cache = cacheManager.GetCache<List<SeriesTranslation>>(GetType(), "translations");
+            _episodeCache = cacheManager.GetCache<List<Episode>>(GetType(), "episodeTranslations");
             _searchCache = cacheManager.GetCache<List<int>>(GetType(), "search");
             _logger = logger;
         }
@@ -53,6 +57,18 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             }
 
             return _cache.Get($"{tvdbId}-{isoLanguage.ThreeLetterCode}", () => FetchTranslation(tvdbId, isoLanguage.ThreeLetterCode), TimeSpan.FromHours(12));
+        }
+
+        public List<Episode> GetEpisodeTranslations(int tvdbId, Language language)
+        {
+            var isoLanguage = IsoLanguages.Get(language);
+
+            if (isoLanguage == null)
+            {
+                return new List<Episode>();
+            }
+
+            return _episodeCache.Get($"{tvdbId}-{isoLanguage.ThreeLetterCode}", () => FetchEpisodeTranslations(tvdbId, isoLanguage.ThreeLetterCode), TimeSpan.FromHours(12));
         }
 
         public List<int> SearchSeries(string title, Language language)
@@ -152,6 +168,57 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
                 .ToList() ?? new List<int>();
         }
 
+        private List<Episode> FetchEpisodeTranslations(int tvdbId, string languageCode)
+        {
+            var token = GetToken();
+
+            if (token.IsNullOrWhiteSpace())
+            {
+                return new List<Episode>();
+            }
+
+            var translations = new List<Episode>();
+            var page = 0;
+            var response = GetEpisodeTranslationsResponse(tvdbId, languageCode, page, token);
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                _tokenCache.Remove("token");
+                token = GetToken();
+
+                if (token.IsNotNullOrWhiteSpace())
+                {
+                    response = GetEpisodeTranslationsResponse(tvdbId, languageCode, page, token);
+                }
+            }
+
+            while (true)
+            {
+                if (response.HasHttpError)
+                {
+                    _logger.Debug("Unable to fetch TheTVDB episode translations for tvdbid {0} language {1}: HTTP {2}", tvdbId, languageCode, response.StatusCode);
+                    return translations;
+                }
+
+                var episodes = response.Resource?.Data?.Episodes ?? new List<TvdbEpisodeTranslationResource>();
+
+                translations.AddRange(episodes.Select(MapEpisodeTranslation));
+
+                if (response.Resource?.Links?.Next.IsNullOrWhiteSpace() != false)
+                {
+                    break;
+                }
+
+                page++;
+                response = GetEpisodeTranslationsResponse(tvdbId, languageCode, page, token);
+            }
+
+            return translations
+                .Where(e => e.TvdbId > 0 && (e.Title.IsNotNullOrWhiteSpace() || e.Overview.IsNotNullOrWhiteSpace()))
+                .DistinctBy(e => e.TvdbId)
+                .ToList();
+        }
+
         private HttpResponse<TvdbApiResponse<TvdbTranslationResource>> GetTranslationResponse(int tvdbId, string languageCode, string token)
         {
             var request = new HttpRequestBuilder("https://api4.thetvdb.com/v4/")
@@ -179,6 +246,32 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             request.SuppressHttpError = true;
 
             return _httpClient.Get<TvdbApiResponse<List<TvdbSearchResource>>>(request);
+        }
+
+        private HttpResponse<TvdbApiResponse<TvdbEpisodeTranslationsResource>> GetEpisodeTranslationsResponse(int tvdbId, string languageCode, int page, string token)
+        {
+            var request = new HttpRequestBuilder("https://api4.thetvdb.com/v4/")
+                .Resource($"series/{tvdbId}/episodes/default/{languageCode}")
+                .AddQueryParam("page", page)
+                .Accept(HttpAccept.Json)
+                .SetHeader("Authorization", $"Bearer {token}")
+                .Build();
+
+            request.SuppressHttpError = true;
+
+            return _httpClient.Get<TvdbApiResponse<TvdbEpisodeTranslationsResource>>(request);
+        }
+
+        private static Episode MapEpisodeTranslation(TvdbEpisodeTranslationResource resource)
+        {
+            return new Episode
+            {
+                TvdbId = resource.TvdbId,
+                SeasonNumber = resource.SeasonNumber,
+                EpisodeNumber = resource.EpisodeNumber,
+                Title = WebUtility.HtmlDecode(resource.Title),
+                Overview = WebUtility.HtmlDecode(resource.Overview)
+            };
         }
 
         private string GetToken()
@@ -238,6 +331,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             where T : new()
         {
             public T Data { get; set; }
+            public TvdbLinksResource Links { get; set; }
         }
 
         public class TvdbLoginResource
@@ -258,6 +352,32 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             public string TvdbId { get; set; }
 
             public string Type { get; set; }
+        }
+
+        public class TvdbEpisodeTranslationsResource
+        {
+            public List<TvdbEpisodeTranslationResource> Episodes { get; set; }
+        }
+
+        public class TvdbEpisodeTranslationResource
+        {
+            [JsonProperty("id")]
+            public int TvdbId { get; set; }
+
+            public int SeasonNumber { get; set; }
+
+            [JsonProperty("number")]
+            public int EpisodeNumber { get; set; }
+
+            [JsonProperty("name")]
+            public string Title { get; set; }
+
+            public string Overview { get; set; }
+        }
+
+        public class TvdbLinksResource
+        {
+            public string Next { get; set; }
         }
     }
 }
