@@ -28,6 +28,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
         List<ManualImportItem> GetMediaFiles(int seriesId, int? seasonNumber);
         List<ManualImportItem> GetMediaFiles(string path, string downloadId, int? seriesId, bool filterExistingFiles);
         ManualImportItem ReprocessItem(string path, string downloadId, int seriesId, int? seasonNumber, List<int> episodeIds, string releaseGroup, QualityModel quality, bool qualityManuallySelected, List<Language> languages, int indexerFlags, ReleaseType releaseType);
+        void UpdateTrackedDownloadsForQueuedManualImport(ManualImportCommand message);
     }
 
     public class ManualImportService : IExecute<ManualImportCommand>, IManualImportService
@@ -969,22 +970,89 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
             }
         }
 
+        public void UpdateTrackedDownloadsForQueuedManualImport(ManualImportCommand message)
+        {
+            if (message.Files == null)
+            {
+                return;
+            }
+
+            var updated = false;
+
+            foreach (var filesByDownload in message.Files.Where(f => f.DownloadId.IsNotNullOrWhiteSpace()).GroupBy(f => f.DownloadId))
+            {
+                var trackedDownload = _trackedDownloadService.Find(filesByDownload.Key);
+                var firstFile = filesByDownload.FirstOrDefault(f => f.SeriesId > 0);
+
+                if (trackedDownload == null || firstFile == null)
+                {
+                    continue;
+                }
+
+                var series = _seriesService.GetSeries(firstFile.SeriesId);
+                var episodeIds = filesByDownload
+                    .SelectMany(f => f.EpisodeIds ?? new List<int>())
+                    .Distinct()
+                    .ToList();
+                var episodes = episodeIds.Any() ? _episodeService.GetEpisodes(episodeIds) : new List<Episode>();
+                var parsedEpisodeInfo = Parser.Parser.ParsePath(firstFile.Path,
+                                                                  _configService.ParseTvdbIdFromReleaseName,
+                                                                  _configService.ParseEpisodeNumberOnlyAsSeasonOne) ?? new ParsedEpisodeInfo();
+
+                UpdateTrackedDownloadForManualImport(trackedDownload,
+                                                     series,
+                                                     episodes,
+                                                     parsedEpisodeInfo,
+                                                     firstFile.Languages,
+                                                     TrackedDownloadState.ImportPending);
+                updated = true;
+            }
+
+            if (updated)
+            {
+                _eventAggregator.PublishEvent(new TrackedDownloadRefreshedEvent(_trackedDownloadService.GetTrackedDownloads()));
+            }
+        }
+
         private void UpdateTrackedDownloadForManualImport(TrackedDownload trackedDownload, LocalEpisode localEpisode, List<Episode> manuallyMatchedEpisodes)
         {
             var episodes = manuallyMatchedEpisodes?.Any() == true ? manuallyMatchedEpisodes : localEpisode.Episodes;
 
-            trackedDownload.RemoteEpisode ??= new RemoteEpisode();
-            trackedDownload.RemoteEpisode.Series = localEpisode.Series;
-            trackedDownload.RemoteEpisode.Episodes = episodes;
-            trackedDownload.RemoteEpisode.ParsedEpisodeInfo ??= localEpisode.FileEpisodeInfo;
-            trackedDownload.RemoteEpisode.Languages = localEpisode.Languages;
-            trackedDownload.RemoteEpisode.CustomFormats = localEpisode.CustomFormats;
-            trackedDownload.RemoteEpisode.CustomFormatScore = localEpisode.CustomFormatScore;
-
-            trackedDownload.ClearStatus();
-            trackedDownload.State = TrackedDownloadState.Importing;
+            UpdateTrackedDownloadForManualImport(trackedDownload,
+                                                 localEpisode.Series,
+                                                 episodes,
+                                                 localEpisode.FileEpisodeInfo,
+                                                 localEpisode.Languages,
+                                                 TrackedDownloadState.Importing,
+                                                 localEpisode.CustomFormats,
+                                                 localEpisode.CustomFormatScore);
 
             _eventAggregator.PublishEvent(new TrackedDownloadRefreshedEvent(_trackedDownloadService.GetTrackedDownloads()));
+        }
+
+        private void UpdateTrackedDownloadForManualImport(TrackedDownload trackedDownload,
+                                                          Series series,
+                                                          List<Episode> episodes,
+                                                          ParsedEpisodeInfo parsedEpisodeInfo,
+                                                          List<Language> languages,
+                                                          TrackedDownloadState state,
+                                                          List<CustomFormat> customFormats = null,
+                                                          int? customFormatScore = null)
+        {
+            trackedDownload.RemoteEpisode ??= new RemoteEpisode();
+            trackedDownload.RemoteEpisode.Series = series;
+            trackedDownload.RemoteEpisode.Episodes = episodes;
+            trackedDownload.RemoteEpisode.ParsedEpisodeInfo ??= parsedEpisodeInfo;
+            trackedDownload.RemoteEpisode.Languages = languages;
+
+            if (customFormats != null)
+            {
+                trackedDownload.RemoteEpisode.CustomFormats = customFormats;
+                trackedDownload.RemoteEpisode.CustomFormatScore = customFormatScore ?? 0;
+            }
+
+            trackedDownload.ClearStatus();
+            trackedDownload.State = state;
         }
     }
 }
