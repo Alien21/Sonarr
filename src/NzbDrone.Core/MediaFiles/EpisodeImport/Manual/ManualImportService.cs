@@ -230,7 +230,12 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
 
             if (seasonNumber.HasValue)
             {
-                var downloadClientItem = GetTrackedDownload(downloadId)?.DownloadItem;
+                var trackedDownload = GetTrackedDownload(downloadId);
+                var downloadClientItem = trackedDownload?.DownloadItem;
+                var initialQuality = qualityManuallySelected && quality != null && quality.Quality != Quality.Unknown
+                    ? quality
+                    : QualityParser.ParseQuality(path);
+                var initialLanguages = selectedLanguages ?? LanguageParser.ParseLanguages(path);
 
                 var localEpisode = new LocalEpisode
                 {
@@ -246,13 +251,30 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                     ExistingFile = series.Path.IsParentPath(path),
                     Size = _diskProvider.GetFileSize(path),
                     ReleaseGroup = releaseGroup.IsNullOrWhiteSpace() ? Parser.Parser.ParseReleaseGroup(path) : releaseGroup,
-                    Languages = selectedLanguages ?? LanguageParser.ParseLanguages(path),
-                    Quality = qualityManuallySelected && quality != null && quality.Quality != Quality.Unknown ? quality : QualityParser.ParseQuality(path),
+                    Languages = initialLanguages,
+                    Quality = initialQuality,
                     IndexerFlags = (IndexerFlags)indexerFlags,
                     ReleaseType = releaseType
                 };
 
-                return MapItem(new ImportDecision(localEpisode, new ImportRejection(ImportRejectionReason.NoEpisodes, "Episodes not selected")), rootFolder, downloadId, null);
+                ApplyTrackedDownloadAnalysis(localEpisode, trackedDownload);
+
+                if (qualityManuallySelected && quality != null && quality.Quality != Quality.Unknown)
+                {
+                    localEpisode.Quality = quality;
+                }
+
+                if (selectedLanguages != null)
+                {
+                    localEpisode.Languages = selectedLanguages;
+                }
+
+                return MapItem(
+                    new ImportDecision(localEpisode, new ImportRejection(ImportRejectionReason.NoEpisodes, "Episodes not selected")),
+                    rootFolder,
+                    downloadId,
+                    null,
+                    GetTrackedDownloadSubtitleLanguages(trackedDownload, localEpisode));
             }
 
             return ProcessFile(rootFolder, rootFolder, path, downloadId, series);
