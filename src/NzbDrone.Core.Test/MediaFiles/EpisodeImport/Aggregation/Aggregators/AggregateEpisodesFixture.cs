@@ -132,6 +132,27 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport.Aggregation.Aggregators
         }
 
         [Test]
+        public void should_use_file_when_download_or_folder_has_broader_episode_range()
+        {
+            var fileEpisodeInfo = Parser.Parser.ParseTitle("Series.Title.S01E01");
+            var downloadClientEpisodeInfo = Parser.Parser.ParseTitle("Series.Title.S01E01-E13");
+            var folderEpisodeInfo = Parser.Parser.ParseTitle("Series.Title.S01E01-E13");
+            var localEpisode = new LocalEpisode
+            {
+                FileEpisodeInfo = fileEpisodeInfo,
+                DownloadClientEpisodeInfo = downloadClientEpisodeInfo,
+                FolderEpisodeInfo = folderEpisodeInfo,
+                Path = @"C:\Test\Unsorted TV\Series.Title.S01E01-E13\Series.Title.S01E01.mkv".AsOsAgnostic(),
+                Series = _series
+            };
+
+            Subject.Aggregate(localEpisode, null);
+
+            Mocker.GetMock<IParsingService>()
+                  .Verify(v => v.GetEpisodes(fileEpisodeInfo, _series, localEpisode.SceneSource, null), Times.Once());
+        }
+
+        [Test]
         public void should_use_special_info_when_not_null()
         {
             var fileEpisodeInfo = Parser.Parser.ParseTitle("S00E01");

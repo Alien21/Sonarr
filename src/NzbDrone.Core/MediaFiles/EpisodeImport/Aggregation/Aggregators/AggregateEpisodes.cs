@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Parser;
@@ -107,7 +108,32 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Aggregation.Aggregators
                 return false;
             }
 
+            if (FileEpisodeInfoIsNarrowerEpisodeRange(fileEpisodeInfo, otherEpisodeInfo))
+            {
+                return false;
+            }
+
             return true;
+        }
+
+        private bool FileEpisodeInfoIsNarrowerEpisodeRange(ParsedEpisodeInfo fileEpisodeInfo, ParsedEpisodeInfo otherEpisodeInfo)
+        {
+            if (fileEpisodeInfo.SeasonNumber == otherEpisodeInfo.SeasonNumber &&
+                fileEpisodeInfo.EpisodeNumbers.Any() &&
+                otherEpisodeInfo.EpisodeNumbers.Length > fileEpisodeInfo.EpisodeNumbers.Length &&
+                fileEpisodeInfo.EpisodeNumbers.All(otherEpisodeInfo.EpisodeNumbers.Contains))
+            {
+                return true;
+            }
+
+            if (fileEpisodeInfo.AbsoluteEpisodeNumbers.Any() &&
+                otherEpisodeInfo.AbsoluteEpisodeNumbers.Length > fileEpisodeInfo.AbsoluteEpisodeNumbers.Length &&
+                fileEpisodeInfo.AbsoluteEpisodeNumbers.All(otherEpisodeInfo.AbsoluteEpisodeNumbers.Contains))
+            {
+                return true;
+            }
+
+            return false;
         }
     }
 }
