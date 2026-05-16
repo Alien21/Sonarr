@@ -208,6 +208,70 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
         }
 
         [Test]
+        public void should_update_cached_completed_usenet_download_to_imported_from_history()
+        {
+            var remoteEpisode = new RemoteEpisode
+            {
+                Series = new Series { Id = 5 },
+                Episodes = new List<Episode> { new Episode { Id = 4 } },
+                ParsedEpisodeInfo = new ParsedEpisodeInfo
+                {
+                    SeriesTitle = "TV Series",
+                    SeasonNumber = 1,
+                    EpisodeNumbers = new[] { 1 }
+                },
+                MappedSeasonNumber = 1
+            };
+
+            Mocker.GetMock<IHistoryService>()
+                  .Setup(s => s.FindByDownloadId("35238"))
+                  .Returns(new List<EpisodeHistory>());
+
+            Mocker.GetMock<IParsingService>()
+                  .Setup(s => s.Map(It.IsAny<ParsedEpisodeInfo>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(), null))
+                  .Returns(remoteEpisode);
+
+            var client = new DownloadClientDefinition
+            {
+                Id = 1,
+                Protocol = DownloadProtocol.Usenet
+            };
+
+            var item = new DownloadClientItem
+            {
+                Title = "TV.Series.S01E01.720p.HDTV",
+                DownloadId = "35238",
+                Status = DownloadItemStatus.Completed,
+                DownloadClientInfo = new DownloadClientItemClientInfo
+                {
+                    Protocol = client.Protocol,
+                    Id = client.Id,
+                    Name = client.Name
+                }
+            };
+
+            var trackedDownload = Subject.TrackDownload(client, item);
+
+            trackedDownload.State = TrackedDownloadState.ImportBlocked;
+            trackedDownload.Warn("Unable to import automatically");
+
+            Mocker.GetMock<IDownloadHistoryService>()
+                  .Setup(s => s.GetLatestDownloadHistoryItem("35238"))
+                  .Returns(new DownloadHistory
+                  {
+                      DownloadId = "35238",
+                      EventType = DownloadHistoryEventType.DownloadImported
+                  });
+
+            var updatedTrackedDownload = Subject.TrackDownload(client, item);
+
+            updatedTrackedDownload.Should().BeSameAs(trackedDownload);
+            updatedTrackedDownload.State.Should().Be(TrackedDownloadState.Imported);
+            updatedTrackedDownload.Status.Should().Be(TrackedDownloadStatus.Ok);
+            updatedTrackedDownload.StatusMessages.Should().BeEmpty();
+        }
+
+        [Test]
         public void should_mark_download_as_imported_when_imported_history_matches_current_files()
         {
             var historyItems = new List<EpisodeHistory>();
