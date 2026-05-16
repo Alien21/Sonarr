@@ -38,6 +38,15 @@ namespace NzbDrone.Core.Download
 
     public class CompletedDownloadService : ICompletedDownloadService
     {
+        private static readonly HashSet<ImportRejectionReason> GenericExistingEpisodeImportRejectionReasons = new HashSet<ImportRejectionReason>
+        {
+            ImportRejectionReason.UnknownSeries,
+            ImportRejectionReason.EpisodeAlreadyImported,
+            ImportRejectionReason.NotQualityUpgrade,
+            ImportRejectionReason.NotRevisionUpgrade,
+            ImportRejectionReason.NotCustomFormatUpgrade
+        };
+
         private readonly IEventAggregator _eventAggregator;
         private readonly IHistoryService _historyService;
         private readonly IProvideImportItemService _provideImportItemService;
@@ -1182,9 +1191,23 @@ namespace NzbDrone.Core.Download
 
             AnalyzeCompletedDownloadFile(trackedDownload);
 
-            if (ShouldBypassExistingEpisodeAutoImportBlock(trackedDownload))
+            var importDecisions = GetExistingEpisodeAutoImportDecisions(trackedDownload);
+
+            if (ShouldBypassExistingEpisodeAutoImportBlock(importDecisions, trackedDownload.DownloadItem.Title))
             {
                 return false;
+            }
+
+            var importDecisionBlockReason = GetExistingEpisodeAutoImportDecisionBlockReason(importDecisions);
+            if (importDecisionBlockReason.IsNotNullOrWhiteSpace())
+            {
+                var importDecisionBlockMessage = FormatAutoImportBlockReason(importDecisionBlockReason);
+
+                trackedDownload.Warn("Auto-import blocked: {0}", importDecisionBlockMessage);
+                _logger.Warn("Auto-import blocked for '{0}': import rejected while replacing existing episode file: {1}", trackedDownload.DownloadItem.Title, importDecisionBlockReason);
+                SetStateToImportBlocked(trackedDownload);
+
+                return true;
             }
 
             trackedDownload.Warn("Auto-import blocked: one or more matched episodes already have files in library.");
@@ -1268,20 +1291,29 @@ namespace NzbDrone.Core.Download
             _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, trackedDownload.RemoteEpisode.Series.Id, files, releaseInfo));
         }
 
-        private bool ShouldBypassExistingEpisodeAutoImportBlock(TrackedDownload trackedDownload)
+        private List<ImportDecision> GetExistingEpisodeAutoImportDecisions(TrackedDownload trackedDownload)
         {
             if (trackedDownload.ImportItem == null ||
                 trackedDownload.ImportItem.OutputPath.FullPath.IsNullOrWhiteSpace())
             {
+                return new List<ImportDecision>();
+            }
+
+            return GetCompletedDownloadImportDecisions(trackedDownload, trackedDownload.ImportItem.OutputPath.FullPath);
+        }
+
+        private bool ShouldBypassExistingEpisodeAutoImportBlock(List<ImportDecision> decisions, string downloadTitle)
+        {
+            if (decisions.Empty())
+            {
                 return false;
             }
 
-            var decisions = GetCompletedDownloadImportDecisions(trackedDownload, trackedDownload.ImportItem.OutputPath.FullPath);
             var qualityUpgradeDecision = GetApprovedQualityUpgradeDecision(decisions);
 
             if (qualityUpgradeDecision != null)
             {
-                _logger.Info("Auto-import block bypassed: '{0}' has an approved quality upgrade '{1}'.", trackedDownload.DownloadItem.Title, qualityUpgradeDecision.LocalEpisode.Path);
+                _logger.Info("Auto-import block bypassed: '{0}' has an approved quality upgrade '{1}'.", downloadTitle, qualityUpgradeDecision.LocalEpisode.Path);
                 return true;
             }
 
@@ -1291,21 +1323,15 @@ namespace NzbDrone.Core.Download
             }
 
             var preferredDualAudioDecision = decisions.FirstOrDefault(decision =>
-            {
-                if (!decision.Approved)
-                {
-                    return false;
-                }
-
-                return HasPreferredDualAudioUpgrade(decision.LocalEpisode);
-            });
+                decision.Approved &&
+                HasPreferredDualAudioUpgrade(decision.LocalEpisode));
 
             if (preferredDualAudioDecision == null)
             {
                 return false;
             }
 
-            _logger.Info("Auto-import block bypassed: '{0}' has an approved preferred dual-audio upgrade '{1}'.", trackedDownload.DownloadItem.Title, preferredDualAudioDecision.LocalEpisode.Path);
+            _logger.Info("Auto-import block bypassed: '{0}' has an approved preferred dual-audio upgrade '{1}'.", downloadTitle, preferredDualAudioDecision.LocalEpisode.Path);
             return true;
         }
 
@@ -1314,6 +1340,26 @@ namespace NzbDrone.Core.Download
             return decisions.FirstOrDefault(decision =>
                 decision.Approved &&
                 IsQualityUpgradeForExistingEpisodeFiles(decision.LocalEpisode));
+        }
+
+        private string GetExistingEpisodeAutoImportDecisionBlockReason(List<ImportDecision> decisions)
+        {
+            var rejectionMessages = decisions
+                .Where(decision => IsExistingEpisodeAutoImportBypassCandidate(decision.LocalEpisode))
+                .SelectMany(decision => decision.Rejections)
+                .Where(rejection => !GenericExistingEpisodeImportRejectionReasons.Contains(rejection.Reason))
+                .Select(rejection => rejection.Message)
+                .Where(message => message.IsNotNullOrWhiteSpace())
+                .Distinct()
+                .ToList();
+
+            return rejectionMessages.Any() ? string.Join("; ", rejectionMessages) : null;
+        }
+
+        private bool IsExistingEpisodeAutoImportBypassCandidate(LocalEpisode localEpisode)
+        {
+            return IsQualityUpgradeForExistingEpisodeFiles(localEpisode) ||
+                   HasPreferredDualAudioUpgrade(localEpisode);
         }
 
         private bool IsQualityUpgradeForExistingEpisodeFiles(LocalEpisode localEpisode)
@@ -1345,6 +1391,11 @@ namespace NzbDrone.Core.Download
             return existingEpisodeFiles.All(episodeFile =>
                 episodeFile.Quality != null &&
                 qualityComparer.Compare(localEpisode.Quality, episodeFile.Quality) > 0);
+        }
+
+        private static string FormatAutoImportBlockReason(string reason)
+        {
+            return reason.EndsWith(".") ? reason : $"{reason}.";
         }
 
         private bool ReplacesPreferredDualAudioWithNonDual(LocalEpisode localEpisode, List<EpisodeFile> existingEpisodeFiles)

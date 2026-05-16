@@ -405,6 +405,70 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
         }
 
         [Test]
+        public void should_report_import_decision_rejection_when_existing_episode_auto_import_upgrade_is_blocked()
+        {
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(v => v.BlockAutoImportForExistingEpisodeFiles)
+                .Returns(true);
+
+            Mocker.GetMock<IConfigService>()
+                .SetupGet(v => v.PreferDualAudio)
+                .Returns(true);
+
+            var outputPath = @"C:\DropFolder\MyDownload.mkv".AsOsAgnostic();
+            _trackedDownload.DownloadItem.OutputPath = new OsPath(outputPath);
+
+            var existingEpisodeFile = new EpisodeFile();
+            var episode = new Episode
+            {
+                Id = 1,
+                SeasonNumber = 1,
+                EpisodeNumber = 1,
+                EpisodeFileId = 1,
+                EpisodeFile = new LazyLoaded<EpisodeFile>(existingEpisodeFile)
+            };
+
+            _trackedDownload.RemoteEpisode.Episodes = new List<Episode> { episode };
+
+            var localEpisode = new LocalEpisode
+            {
+                Path = outputPath,
+                Series = _trackedDownload.RemoteEpisode.Series,
+                Episodes = new List<Episode> { episode }
+            };
+
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(v => v.FileExists(outputPath))
+                .Returns(true);
+
+            Mocker.GetMock<IMakeImportDecision>()
+                .Setup(v => v.GetImportDecisions(It.IsAny<List<string>>(), _trackedDownload.RemoteEpisode.Series, _trackedDownload.DownloadItem, null, true, false))
+                .Returns(new List<ImportDecision>
+                {
+                    new ImportDecision(localEpisode, new ImportRejection(ImportRejectionReason.MinimumFreeSpace, "Not enough free space"))
+                });
+
+            Mocker.GetMock<IDualAudioImportPreference>()
+                .Setup(v => v.Evaluate(localEpisode, existingEpisodeFile))
+                .Returns(new DualAudioImportPreferenceResult
+                {
+                    Applies = true,
+                    IsPreferredUpgrade = true
+                });
+
+            Subject.Import(_trackedDownload);
+
+            Mocker.GetMock<IDownloadedEpisodesImportService>()
+                .Verify(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Series>(), It.IsAny<DownloadClientItem>()), Times.Never());
+
+            _trackedDownload.StatusMessages.Should().ContainSingle();
+            _trackedDownload.StatusMessages[0].Messages.Should().ContainSingle("Auto-import blocked: Not enough free space.");
+
+            AssertNotImported();
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
         public void should_not_mark_as_imported_if_some_of_episodes_were_not_imported()
         {
             _trackedDownload.RemoteEpisode.Episodes = new List<Episode>
