@@ -85,6 +85,21 @@ namespace NzbDrone.Core.Test.ParserTests
             ExceptionVerification.IgnoreWarns();
         }
 
+        [TestCase(@"C:\Test\Pribeh Heavy Metalu E01-E11 CZ TvRip 720p 2011-2014 Dokument\Pribeh Heavy Metalu 2. dil.mkv", 2)]
+        [TestCase(@"C:\Test\Pribeh Heavy Metalu E01-E11 CZ TvRip 720p 2011-2014 Dokument\Pribeh Heavy Metalu 10. dil.mkv", 10)]
+        public void should_narrow_episode_only_folder_range_using_numbered_file_name(string path, int episode)
+        {
+            var result = Parser.Parser.ParsePath(path.AsOsAgnostic(), false, true);
+
+            result.Should().NotBeNull();
+            result.SeasonNumber.Should().Be(1);
+            result.EpisodeNumbers.Should().Equal(episode);
+            result.AbsoluteEpisodeNumbers.Should().BeEmpty();
+            result.FullSeason.Should().BeFalse();
+
+            ExceptionVerification.IgnoreWarns();
+        }
+
         [Test]
         public void should_prefer_file_tvdb_id_over_path_tvdb_id()
         {

@@ -594,6 +594,7 @@ namespace NzbDrone.Core.Parser
         private static readonly Regex DuplicateSpacesRegex = new Regex(@"\s{2,}", RegexOptions.Compiled);
         private static readonly Regex SeasonFolderRegex = new Regex(@"^(?:S|Season|Saison|Series|Stagione)[-_. ]*(?<season>(?<!\d+)\d{1,4}(?!\d+))(?:[_. ]+(?!\d+)|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex SimpleEpisodeNumberRegex = new Regex(@"^[ex]?(?<episode>(?<!\d+)\d{1,3}(?!\d+))(?:[ex-](?<episode>(?<!\d+)\d{1,3}(?!\d+)))?(?:[_. ](?!\d+)(?<remaining>.+)|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex NumberedEpisodeFileRegex = new Regex(@"(?:^|[ ._-])(?<episode>\d{1,3})[ ._-]*(?:dil|d\u00EDl)(?:[ ._-]|$)|(?:^|[ ._-])(?:dil|d\u00EDl)[ ._-]*(?<episode>\d{1,3})(?:[ ._-]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly Regex RequestInfoRegex = new Regex(@"^(?:\[.+?\])+", RegexOptions.Compiled);
         private static readonly Regex TvdbIdRegex = new Regex(@"(?:\[\s*|\(\s*)tvdb\s*[-:]?\s*(?<id>\d+)\s*(?:\]|\))", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -665,6 +666,27 @@ namespace NzbDrone.Core.Parser
         {
             var fileInfo = new FileInfo(path);
             var result = ParseTitle(fileInfo.Name, parseTvdbId, parseEpisodeOnlyAsSeasonOne);
+            var numberedEpisode = GetNumberedEpisodeFromFileName(fileInfo.Name);
+
+            if (numberedEpisode.HasValue && fileInfo.Directory?.Name != null && (result == null || result.IsMiniSeries || result.AbsoluteEpisodeNumbers.Any()))
+            {
+                Logger.Debug("Attempting to parse episode info using numbered file and directory names. {0}", fileInfo.Directory.Name);
+
+                var directoryResult = ParseTitle(fileInfo.Directory.Name, parseTvdbId, parseEpisodeOnlyAsSeasonOne);
+                var narrowedResult = NarrowMultiEpisodeResultToFileEpisode(directoryResult, numberedEpisode.Value);
+
+                if (narrowedResult != null)
+                {
+                    Logger.Debug("Episode parsed from numbered file and directory names. {0}", narrowedResult);
+
+                    if (parseTvdbId)
+                    {
+                        AddPathTvdbId(narrowedResult, fileInfo);
+                    }
+
+                    return narrowedResult;
+                }
+            }
 
             // Parse using the folder and file separately, but combine if they both parse correctly.
             var episodeNumberMatch = SimpleEpisodeNumberRegex.Match(fileInfo.Name);
@@ -740,6 +762,38 @@ namespace NzbDrone.Core.Parser
             }
 
             return result;
+        }
+
+        private static int? GetNumberedEpisodeFromFileName(string fileName)
+        {
+            var episodeMatch = NumberedEpisodeFileRegex.Match(Path.GetFileNameWithoutExtension(fileName));
+
+            if (!episodeMatch.Success)
+            {
+                return null;
+            }
+
+            return ParseNumber(episodeMatch.Groups["episode"].Captures.Cast<Capture>().Last().Value);
+        }
+
+        private static ParsedEpisodeInfo NarrowMultiEpisodeResultToFileEpisode(ParsedEpisodeInfo parsedEpisodeInfo, int episodeNumber)
+        {
+            if (parsedEpisodeInfo == null ||
+                parsedEpisodeInfo.FullSeason ||
+                parsedEpisodeInfo.EpisodeNumbers.Length <= 1 ||
+                !parsedEpisodeInfo.EpisodeNumbers.Contains(episodeNumber))
+            {
+                return null;
+            }
+
+            parsedEpisodeInfo.EpisodeNumbers = new[] { episodeNumber };
+            parsedEpisodeInfo.AbsoluteEpisodeNumbers = Array.Empty<int>();
+            parsedEpisodeInfo.SpecialAbsoluteEpisodeNumbers = Array.Empty<decimal>();
+            parsedEpisodeInfo.FullSeason = false;
+            parsedEpisodeInfo.IsPartialSeason = false;
+            parsedEpisodeInfo.IsMultiSeason = false;
+
+            return parsedEpisodeInfo;
         }
 
         public static string SimplifyTitle(string title)
