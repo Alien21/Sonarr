@@ -1175,6 +1175,11 @@ namespace NzbDrone.Core.Download
                 return false;
             }
 
+            if (MarkAsImportedIfAlreadyImportedInHistory(trackedDownload))
+            {
+                return true;
+            }
+
             AnalyzeCompletedDownloadFile(trackedDownload);
 
             if (ShouldBypassExistingEpisodeAutoImportBlock(trackedDownload))
@@ -1187,6 +1192,80 @@ namespace NzbDrone.Core.Download
             SetStateToImportBlocked(trackedDownload);
 
             return true;
+        }
+
+        private bool MarkAsImportedIfAlreadyImportedInHistory(TrackedDownload trackedDownload)
+        {
+            var historyItems = _historyService.FindByDownloadId(trackedDownload.DownloadItem.DownloadId)
+                .OrderByDescending(h => h.Date)
+                .ToList();
+
+            if (!_trackedDownloadAlreadyImported.IsImported(trackedDownload, historyItems) ||
+                !RemainingDownloadFilesMatchImportHistory(trackedDownload, historyItems))
+            {
+                return false;
+            }
+
+            var grabbedHistory = historyItems.Where(h => h.EventType == EpisodeHistoryEventType.Grabbed).ToList();
+            var releaseInfo = grabbedHistory.Count > 0 ? new GrabbedReleaseInfo(grabbedHistory) : null;
+
+            _logger.Debug("All episodes were imported in history for {0}", trackedDownload.DownloadItem.Title);
+            MarkDownloadAsImported(trackedDownload, releaseInfo);
+
+            return true;
+        }
+
+        private bool RemainingDownloadFilesMatchImportHistory(TrackedDownload trackedDownload, List<EpisodeHistory> historyItems)
+        {
+            var outputPath = trackedDownload.ImportItem?.OutputPath.FullPath;
+
+            if (outputPath.IsNullOrWhiteSpace() ||
+                !TryGetCompletedDownloadVideoFiles(outputPath, out _, out var videoFiles) ||
+                videoFiles.Empty())
+            {
+                return true;
+            }
+
+            foreach (var videoFile in videoFiles)
+            {
+                var importHistory = historyItems.FirstOrDefault(history =>
+                    history.EventType == EpisodeHistoryEventType.DownloadFolderImported &&
+                    history.Data?.TryGetValue("DroppedPath", out var droppedPath) == true &&
+                    droppedPath.Equals(videoFile, StringComparison.OrdinalIgnoreCase));
+
+                if (importHistory == null)
+                {
+                    _logger.Trace("Remaining download file '{0}' does not match any imported file history.", videoFile);
+                    return false;
+                }
+
+                if (!importHistory.Data.TryGetValue("Size", out var importedSizeText) ||
+                    !long.TryParse(importedSizeText, out var importedSize) ||
+                    importedSize <= 0)
+                {
+                    _logger.Trace("Remaining download file '{0}' does not have an imported file size recorded.", videoFile);
+                    return false;
+                }
+
+                var currentSize = _diskProvider.GetFileSize(videoFile);
+
+                if (currentSize != importedSize)
+                {
+                    _logger.Trace("Remaining download file '{0}' size {1} does not match imported size {2}.", videoFile, currentSize, importedSize);
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private void MarkDownloadAsImported(TrackedDownload trackedDownload, GrabbedReleaseInfo releaseInfo)
+        {
+            var episodes = _episodeService.GetEpisodes(trackedDownload.RemoteEpisode.Episodes.Select(e => e.Id));
+            var files = _mediaFileService.GetFiles(episodes.Select(e => e.EpisodeFileId).Where(i => i > 0).Distinct());
+
+            trackedDownload.State = TrackedDownloadState.Imported;
+            _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, trackedDownload.RemoteEpisode.Series.Id, files, releaseInfo));
         }
 
         private bool ShouldBypassExistingEpisodeAutoImportBlock(TrackedDownload trackedDownload)

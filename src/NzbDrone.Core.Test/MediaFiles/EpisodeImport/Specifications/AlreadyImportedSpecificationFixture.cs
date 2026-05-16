@@ -112,6 +112,7 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport.Specifications
             var history = Builder<EpisodeHistory>.CreateListOfSize(2)
                 .All()
                 .With(h => h.EpisodeId = _episode.Id)
+                .With(h => h.DownloadId = _downloadClientItem.DownloadId)
                 .TheFirst(1)
                 .With(h => h.EventType = EpisodeHistoryEventType.DownloadFolderImported)
                 .With(h => h.Date = DateTime.UtcNow.AddDays(-1))
@@ -124,6 +125,32 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport.Specifications
             GivenHistory(history);
 
             Subject.IsSatisfiedBy(_localEpisode, _downloadClientItem).Accepted.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_accept_if_episode_imported_after_being_grabbed_but_current_file_size_differs()
+        {
+            _episode.EpisodeFileId = 1;
+            _localEpisode.Size = 200;
+
+            var history = Builder<EpisodeHistory>.CreateListOfSize(2)
+                .All()
+                .With(h => h.EpisodeId = _episode.Id)
+                .With(h => h.DownloadId = _downloadClientItem.DownloadId)
+                .TheFirst(1)
+                .With(h => h.EventType = EpisodeHistoryEventType.DownloadFolderImported)
+                .With(h => h.Date = DateTime.UtcNow.AddDays(-1))
+                .TheNext(1)
+                .With(h => h.EventType = EpisodeHistoryEventType.Grabbed)
+                .With(h => h.Date = DateTime.UtcNow.AddDays(-2))
+                .Build()
+                .ToList();
+
+            history[0].Data["Size"] = "100";
+
+            GivenHistory(history);
+
+            Subject.IsSatisfiedBy(_localEpisode, _downloadClientItem).Accepted.Should().BeTrue();
         }
     }
 }

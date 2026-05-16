@@ -51,6 +51,12 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Specifications
                     continue;
                 }
 
+                if (!ImportedFileSizeMatches(localEpisode, lastImported))
+                {
+                    _logger.Debug("Episode file was previously imported, but the current file size does not match the imported size");
+                    continue;
+                }
+
                 if (lastGrabbed != null)
                 {
                     // If the release was grabbed again after importing don't reject it
@@ -75,6 +81,20 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Specifications
             }
 
             return ImportSpecDecision.Accept();
+        }
+
+        private static bool ImportedFileSizeMatches(LocalEpisode localEpisode, EpisodeHistory lastImported)
+        {
+            if (localEpisode.Size <= 0 ||
+                lastImported.Data == null ||
+                !lastImported.Data.TryGetValue("Size", out var importedSizeText) ||
+                !long.TryParse(importedSizeText, out var importedSize) ||
+                importedSize <= 0)
+            {
+                return true;
+            }
+
+            return localEpisode.Size == importedSize;
         }
     }
 }

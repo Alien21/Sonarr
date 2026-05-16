@@ -199,6 +199,148 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
         }
 
         [Test]
+        public void should_mark_as_imported_if_existing_episode_block_finds_all_episodes_imported_in_history()
+        {
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(v => v.BlockAutoImportForExistingEpisodeFiles)
+                  .Returns(true);
+
+            var outputFolder = @"C:\DropFolder\MyDownload".AsOsAgnostic();
+            var sourcePath = @"C:\DropFolder\MyDownload\Droned.S01E01.mkv".AsOsAgnostic();
+            var fileSize = 1234L;
+            var episodeFile = new EpisodeFile { Id = 10, Size = fileSize };
+            var episode = new Episode
+            {
+                Id = 1,
+                SeasonNumber = 1,
+                EpisodeNumber = 1,
+                EpisodeFileId = episodeFile.Id
+            };
+
+            _trackedDownload.DownloadItem.OutputPath = new OsPath(outputFolder);
+            _trackedDownload.RemoteEpisode.Episodes = new List<Episode> { episode };
+
+            var history = Builder<EpisodeHistory>.CreateListOfSize(1)
+                                                .All()
+                                                .With(h => h.EpisodeId = episode.Id)
+                                                .With(h => h.EventType = EpisodeHistoryEventType.DownloadFolderImported)
+                                                .BuildList();
+
+            history[0].Data["FileId"] = episodeFile.Id.ToString();
+            history[0].Data["DroppedPath"] = sourcePath;
+            history[0].Data["Size"] = fileSize.ToString();
+
+            Mocker.GetMock<IHistoryService>()
+                  .Setup(s => s.FindByDownloadId(It.IsAny<string>()))
+                  .Returns(history);
+
+            Mocker.GetMock<ITrackedDownloadAlreadyImported>()
+                  .Setup(s => s.IsImported(_trackedDownload, It.IsAny<List<EpisodeHistory>>()))
+                  .Returns(true);
+
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(s => s.FolderExists(outputFolder))
+                  .Returns(true);
+
+            Mocker.GetMock<IDiskScanService>()
+                  .Setup(s => s.GetVideoFiles(outputFolder, It.IsAny<bool>()))
+                  .Returns(new[] { sourcePath });
+
+            Mocker.GetMock<IDiskScanService>()
+                  .Setup(s => s.FilterPaths(outputFolder, It.IsAny<IEnumerable<string>>(), It.IsAny<bool>()))
+                  .Returns(new List<string> { sourcePath });
+
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(s => s.GetFileSize(sourcePath))
+                  .Returns(fileSize);
+
+            Mocker.GetMock<IEpisodeService>()
+                  .Setup(s => s.GetEpisodes(It.IsAny<IEnumerable<int>>()))
+                  .Returns(new List<Episode> { episode });
+
+            Mocker.GetMock<IMediaFileService>()
+                  .Setup(s => s.GetFiles(It.IsAny<IEnumerable<int>>()))
+                  .Returns(new List<EpisodeFile> { episodeFile });
+
+            Subject.Import(_trackedDownload);
+
+            Mocker.GetMock<IDownloadedEpisodesImportService>()
+                  .Verify(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Series>(), It.IsAny<DownloadClientItem>()), Times.Never());
+
+            Mocker.GetMock<IEventAggregator>()
+                  .Verify(v => v.PublishEvent(It.IsAny<DownloadCompletedEvent>()), Times.Once());
+
+            _trackedDownload.State.Should().Be(TrackedDownloadState.Imported);
+        }
+
+        [Test]
+        public void should_not_mark_as_imported_from_history_if_remaining_file_size_differs()
+        {
+            Mocker.GetMock<IConfigService>()
+                  .SetupGet(v => v.BlockAutoImportForExistingEpisodeFiles)
+                  .Returns(true);
+
+            var outputFolder = @"C:\DropFolder\MyDownload".AsOsAgnostic();
+            var sourcePath = @"C:\DropFolder\MyDownload\Droned.S01E01.mkv".AsOsAgnostic();
+            var importedSize = 1234L;
+            var episode = new Episode
+            {
+                Id = 1,
+                SeasonNumber = 1,
+                EpisodeNumber = 1,
+                EpisodeFileId = 10
+            };
+
+            _trackedDownload.DownloadItem.OutputPath = new OsPath(outputFolder);
+            _trackedDownload.RemoteEpisode.Episodes = new List<Episode> { episode };
+
+            var history = Builder<EpisodeHistory>.CreateListOfSize(1)
+                                                .All()
+                                                .With(h => h.EpisodeId = episode.Id)
+                                                .With(h => h.EventType = EpisodeHistoryEventType.DownloadFolderImported)
+                                                .BuildList();
+
+            history[0].Data["DroppedPath"] = sourcePath;
+            history[0].Data["Size"] = importedSize.ToString();
+
+            Mocker.GetMock<IHistoryService>()
+                  .Setup(s => s.FindByDownloadId(It.IsAny<string>()))
+                  .Returns(history);
+
+            Mocker.GetMock<ITrackedDownloadAlreadyImported>()
+                  .Setup(s => s.IsImported(_trackedDownload, It.IsAny<List<EpisodeHistory>>()))
+                  .Returns(true);
+
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(s => s.FolderExists(outputFolder))
+                  .Returns(true);
+
+            Mocker.GetMock<IDiskScanService>()
+                  .Setup(s => s.GetVideoFiles(outputFolder, It.IsAny<bool>()))
+                  .Returns(new[] { sourcePath });
+
+            Mocker.GetMock<IDiskScanService>()
+                  .Setup(s => s.FilterPaths(outputFolder, It.IsAny<IEnumerable<string>>(), It.IsAny<bool>()))
+                  .Returns(new List<string> { sourcePath });
+
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(s => s.GetFileSize(sourcePath))
+                  .Returns(importedSize + 1);
+
+            Mocker.GetMock<IMakeImportDecision>()
+                  .Setup(s => s.GetImportDecisions(It.IsAny<List<string>>(), It.IsAny<Series>(), It.IsAny<DownloadClientItem>(), It.IsAny<ParsedEpisodeInfo>(), true, false))
+                  .Returns(new List<ImportDecision>());
+
+            Subject.Import(_trackedDownload);
+
+            Mocker.GetMock<IEventAggregator>()
+                  .Verify(v => v.PublishEvent(It.IsAny<DownloadCompletedEvent>()), Times.Never());
+
+            AssertNotImported();
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
         public void should_bypass_existing_episode_auto_import_block_for_preferred_dual_audio_upgrade()
         {
             Mocker.GetMock<IConfigService>()
