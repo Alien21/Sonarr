@@ -121,11 +121,12 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
                   .Setup(s => s.All())
                   .Returns(new List<Tag>());
 
+            var nextTagId = 1;
             Mocker.GetMock<ITagService>()
                   .Setup(s => s.Add(It.IsAny<Tag>()))
                   .Returns<Tag>(tag =>
                   {
-                      tag.Id = 1;
+                      tag.Id = nextTagId++;
                       return tag;
                   });
 
@@ -316,7 +317,9 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             AssertReadyToImport();
 
             Mocker.GetMock<IAddSeriesService>()
-                  .Verify(s => s.AddSeries(It.Is<Series>(series => series.TvdbId == 457275)), Times.Once());
+                  .Verify(s => s.AddSeries(It.Is<Series>(series => series.TvdbId == 457275 &&
+                                                                    series.Tags.Contains(1) &&
+                                                                    series.Tags.Contains(2))), Times.Once());
         }
 
         [Test]
