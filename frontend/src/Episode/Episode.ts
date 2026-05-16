@@ -1,4 +1,5 @@
 import ModelBase from 'App/ModelBase';
+import { EpisodeFile } from 'EpisodeFile/EpisodeFile';
 import Series from 'Series/Series';
 
 interface Episode extends ModelBase {
@@ -17,7 +18,7 @@ interface Episode extends ModelBase {
   sceneAbsoluteEpisodeNumber?: number;
   overview: string;
   title: string;
-  episodeFile?: object;
+  episodeFile?: EpisodeFile;
   hasFile: boolean;
   monitored: boolean;
   grabbed?: boolean;

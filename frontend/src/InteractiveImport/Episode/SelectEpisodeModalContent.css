@@ -17,6 +17,47 @@
   flex: 1 1 auto;
 }
 
+.episodeTitle {
+  composes: cell from '~Components/Table/Cells/TableRowCell.css';
+
+  min-width: 220px;
+}
+
+.fileContext {
+  composes: cell from '~Components/Table/Cells/TableRowCell.css';
+
+  min-width: 360px;
+  max-width: 520px;
+}
+
+.incomingFileName,
+.existingFileName,
+.noFileContext {
+  word-break: break-all;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.incomingFileName + .incomingFileName,
+.incomingFileName + .existingFileName,
+.incomingFileName + .noFileContext,
+.noFileContext + .existingFileName,
+.noFileContext + .noFileContext {
+  margin-top: 4px;
+}
+
+.incomingFileName {
+  color: var(--defaultColor);
+}
+
+.existingFileName {
+  color: var(--helpTextColor);
+}
+
+.noFileContext {
+  color: var(--dimColor);
+}
+
 .footer {
   composes: modalFooter from '~Components/Modal/ModalFooter.css';
 

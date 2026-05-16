@@ -16,7 +16,10 @@ import getReleaseTypeName from 'Episode/getReleaseTypeName';
 import IndexerFlags from 'Episode/IndexerFlags';
 import { icons, kinds, tooltipPositions } from 'Helpers/Props';
 import SelectEpisodeModal from 'InteractiveImport/Episode/SelectEpisodeModal';
-import { SelectedEpisode } from 'InteractiveImport/Episode/SelectEpisodeModalContent';
+import {
+  EpisodeSelectFileContext,
+  SelectedEpisode,
+} from 'InteractiveImport/Episode/SelectEpisodeModalContent';
 import SelectIndexerFlagsModal from 'InteractiveImport/IndexerFlags/SelectIndexerFlagsModal';
 import { ExistingEpisodeFile } from 'InteractiveImport/InteractiveImport';
 import SelectLanguageModal from 'InteractiveImport/Language/SelectLanguageModal';
@@ -92,6 +95,7 @@ function getFileName(relativePath: string) {
 interface InteractiveImportRowProps {
   id: number;
   allowSeriesChange: boolean;
+  episodeFiles?: EpisodeSelectFileContext[];
   relativePath: string;
   series?: Series;
   seasonNumber?: number;
@@ -120,6 +124,7 @@ function InteractiveImportRow(props: InteractiveImportRowProps) {
   const {
     id,
     allowSeriesChange,
+    episodeFiles = [],
     relativePath,
     series,
     seasonNumber,
@@ -701,6 +706,7 @@ function InteractiveImportRow(props: InteractiveImportRowProps) {
       <SelectEpisodeModal
         isOpen={selectModalOpen === 'episode'}
         selectedIds={[id]}
+        episodeFiles={episodeFiles}
         seriesId={series?.id}
         isAnime={isAnime}
         seasonNumber={seasonNumber}

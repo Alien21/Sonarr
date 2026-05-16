@@ -16,6 +16,7 @@ import Episode from 'Episode/Episode';
 import useSelectState from 'Helpers/Hooks/useSelectState';
 import { kinds, scrollDirections } from 'Helpers/Props';
 import { SortDirection } from 'Helpers/Props/sortDirections';
+import InteractiveImport from 'InteractiveImport/InteractiveImport';
 import {
   clearEpisodes,
   fetchEpisodes,
@@ -40,6 +41,13 @@ const columns = [
   {
     name: 'title',
     label: () => translate('Title'),
+    className: styles.episodeTitle,
+    isVisible: true,
+  },
+  {
+    name: 'files',
+    label: 'Mapped / Existing',
+    className: styles.fileContext,
     isVisible: true,
   },
   {
@@ -63,8 +71,14 @@ export interface SelectedEpisode {
   episodes: Episode[];
 }
 
+export type EpisodeSelectFileContext = Pick<
+  InteractiveImport,
+  'id' | 'relativePath' | 'episodes'
+>;
+
 interface SelectEpisodeModalContentProps {
   selectedIds: number[] | string[];
+  episodeFiles?: EpisodeSelectFileContext[];
   seriesId?: number;
   seasonNumber?: number;
   selectedDetails?: string;
@@ -77,6 +91,7 @@ interface SelectEpisodeModalContentProps {
 function SelectEpisodeModalContent(props: SelectEpisodeModalContentProps) {
   const {
     selectedIds,
+    episodeFiles = [],
     seriesId,
     seasonNumber,
     selectedDetails,
@@ -172,9 +187,23 @@ function SelectEpisodeModalContent(props: SelectEpisodeModalContentProps) {
     onEpisodesSelect(mappedEpisodes);
   }, [selectedIds, items, selectedState, onEpisodesSelect]);
 
+  const fileNamesByEpisode = episodeFiles.reduce((acc, episodeFile) => {
+    episodeFile.episodes?.forEach((episode) => {
+      if (!acc[episode.id]) {
+        acc[episode.id] = [];
+      }
+
+      acc[episode.id].push(episodeFile.relativePath);
+    });
+
+    return acc;
+  }, {} as Record<number, string[]>);
+
   useEffect(
     () => {
-      dispatch(fetchEpisodes({ seriesId, seasonNumber }));
+      dispatch(
+        fetchEpisodes({ seriesId, seasonNumber, includeEpisodeFile: true })
+      );
 
       return () => {
         dispatch(clearEpisodes());
@@ -239,6 +268,8 @@ function SelectEpisodeModalContent(props: SelectEpisodeModalContentProps) {
                       absoluteEpisodeNumber={item.absoluteEpisodeNumber}
                       title={item.title}
                       airDate={item.airDate}
+                      incomingFileNames={fileNamesByEpisode[item.id] ?? []}
+                      existingFileName={item.episodeFile?.relativePath}
                       isAnime={isAnime}
                       isSelected={selectedState[item.id]}
                       onSelectedChange={onSelectedChange}

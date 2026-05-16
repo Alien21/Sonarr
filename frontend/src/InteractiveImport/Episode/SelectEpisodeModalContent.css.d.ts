@@ -3,9 +3,14 @@
 interface CssExports {
   'buttons': string;
   'details': string;
+  'episodeTitle': string;
+  'existingFileName': string;
+  'fileContext': string;
   'filterInput': string;
   'footer': string;
+  'incomingFileName': string;
   'modalBody': string;
+  'noFileContext': string;
   'scroller': string;
 }
 export const cssExports: CssExports;

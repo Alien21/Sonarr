@@ -27,7 +27,10 @@ import usePrevious from 'Helpers/Hooks/usePrevious';
 import useSelectState from 'Helpers/Hooks/useSelectState';
 import { align, icons, kinds, scrollDirections } from 'Helpers/Props';
 import SelectEpisodeModal from 'InteractiveImport/Episode/SelectEpisodeModal';
-import { SelectedEpisode } from 'InteractiveImport/Episode/SelectEpisodeModalContent';
+import {
+  EpisodeSelectFileContext,
+  SelectedEpisode,
+} from 'InteractiveImport/Episode/SelectEpisodeModalContent';
 import ImportMode from 'InteractiveImport/ImportMode';
 import SelectIndexerFlagsModal from 'InteractiveImport/IndexerFlags/SelectIndexerFlagsModal';
 import InteractiveImport, {
@@ -833,9 +836,22 @@ function InteractiveImportModalContent(
     return acc;
   }, []);
 
+  const episodeFiles = items.reduce((acc: EpisodeSelectFileContext[], file) => {
+    if (file.episodes?.length) {
+      acc.push({
+        id: file.id,
+        relativePath: file.relativePath,
+        episodes: file.episodes,
+      });
+    }
+
+    return acc;
+  }, []);
+
   const selectedItem = selectedIds.length
     ? items.find((file) => file.id === selectedIds[0])
     : null;
+  const modalSubtitle = title || folder;
 
   const errorMessage = getErrorMessage(
     error,
@@ -845,7 +861,7 @@ function InteractiveImportModalContent(
   return (
     <ModalContent onModalClose={onModalClose}>
       <ModalHeader>
-        {modalTitle} - {title || folder}
+        {modalSubtitle ? `${modalTitle} - ${modalSubtitle}` : modalTitle}
       </ModalHeader>
 
       <ModalBody scrollDirection={scrollDirections.BOTH}>
@@ -907,6 +923,7 @@ function InteractiveImportModalContent(
                     isSelected={selectedState[item.id]}
                     {...item}
                     allowSeriesChange={allowSeriesChange}
+                    episodeFiles={episodeFiles}
                     columns={columns}
                     modalTitle={modalTitle}
                     onSelectedChange={onSelectedChange}
@@ -996,6 +1013,7 @@ function InteractiveImportModalContent(
       <SelectEpisodeModal
         isOpen={selectModalOpen === 'episode'}
         selectedIds={orderedSelectedIds}
+        episodeFiles={episodeFiles}
         seriesId={selectedItem?.series?.id}
         seasonNumber={selectedItem?.seasonNumber}
         isAnime={selectedItem?.series?.seriesType === 'anime'}

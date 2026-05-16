@@ -1,12 +1,14 @@
 import React from 'react';
 import Modal from 'Components/Modal/Modal';
 import SelectEpisodeModalContent, {
+  EpisodeSelectFileContext,
   SelectedEpisode,
 } from './SelectEpisodeModalContent';
 
 interface SelectEpisodeModalProps {
   isOpen: boolean;
   selectedIds: number[] | string[];
+  episodeFiles?: EpisodeSelectFileContext[];
   seriesId?: number;
   seasonNumber?: number;
   selectedDetails?: string;
@@ -20,6 +22,7 @@ function SelectEpisodeModal(props: SelectEpisodeModalProps) {
   const {
     isOpen,
     selectedIds,
+    episodeFiles,
     seriesId,
     seasonNumber,
     selectedDetails,
@@ -33,6 +36,7 @@ function SelectEpisodeModal(props: SelectEpisodeModalProps) {
     <Modal isOpen={isOpen} onModalClose={onModalClose}>
       <SelectEpisodeModalContent
         selectedIds={selectedIds}
+        episodeFiles={episodeFiles}
         seriesId={seriesId}
         seasonNumber={seasonNumber}
         selectedDetails={selectedDetails}
