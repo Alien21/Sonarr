@@ -1,6 +1,7 @@
 using System.Linq;
 using FluentAssertions;
 using NUnit.Framework;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Test.Framework;
 
 namespace NzbDrone.Core.Test.ParserTests
@@ -177,6 +178,8 @@ namespace NzbDrone.Core.Test.ParserTests
         [TestCase("Series [HDTV 1080p][Cap. 101](wolfmax4k.com).mkv", "Series", 1, 1)]
         [TestCase("Amazing Title (2024/S01E07/DSNP/WEB-DL/1080p/ESP/EAC3 5.1/ING/EAC3 5.1 Atmos/SUBS) SPWEB", "Amazing Title (2024)", 1, 7)]
         [TestCase("Mini Title (Miniserie) (2024/S01E07/DSNP/WEB-DL/1080p/ESP/EAC3 5.1/ING/EAC3 5.1 Atmos/SUBS) SPWEB", "Mini Title (2024)", 1, 7)]
+        [TestCase("It CZ WebRip 720p S01E01.mkv", "It", 1, 1)]
+        [TestCase("Mad Max NF WebRip 720p S01E01.mkv", "Mad Max", 1, 1)]
 
         // [TestCase("", "", 0, 0)]
         public void should_parse_single_episode(string postTitle, string title, int seasonNumber, int episodeNumber)
@@ -189,6 +192,18 @@ namespace NzbDrone.Core.Test.ParserTests
             result.SeriesTitle.Should().Be(title);
             result.AbsoluteEpisodeNumbers.Should().BeEmpty();
             result.FullSeason.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_trim_language_token_before_source_from_series_title()
+        {
+            var result = Parser.Parser.ParseTitle("Lovci ve zvireci risi CZ WebRip 720p S01E01 2019 Dokument.mkv");
+
+            result.Should().NotBeNull();
+            result.SeriesTitle.Should().Be("Lovci ve zvireci risi");
+            result.SeasonNumber.Should().Be(1);
+            result.EpisodeNumbers.Should().Equal(1);
+            result.Quality.Quality.Should().Be(Quality.WEBRip720p);
         }
 
         [TestCase("221208 ABC123 Series Title Season 39 ep11.mp4", "ABC123 Series Title", 39, 11)]

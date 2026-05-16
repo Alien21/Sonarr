@@ -563,6 +563,9 @@ namespace NzbDrone.Core.Parser
         private static readonly Regex CleanQualityBracketsRegex = new Regex(@"\[[a-z0-9 ._-]+\]$",
                                                                    RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+        private static readonly Regex LookupAdjacentReleaseTokenRegex = new Regex(@"^(?:CZ|CS|SK|EN|DE|PL|BG|LT|ES|FR|FRE|FRA|ITA|JAP|KOR|HIN|RUS|RU|UKR|AMZN|NF|DSNP|HMAX|HBO|iTunes|INTERNAL|PROPER|REPACK\d*|RERIP\d*)$",
+                                                                            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         private static readonly Regex ReleaseGroupRegex = new Regex(@"-(?<releasegroup>[a-z0-9]+(?<part2>-[a-z0-9]+)?(?!.+?(?:480p|576p|720p|1080p|2160p)))(?<!(?:WEB-DL|Blu-Ray|480p|576p|720p|1080p|2160p|DTS-HD|DTS-X|DTS-MA|DTS-ES|-ES|-EN|-CAT|[ ._]\d{4}-\d{2}|-\d{2})(?:\k<part2>)?)(?:\b|[-._ ]|$)|[-._ ]\[(?<releasegroup>[a-z0-9]+)\]$",
                                                                 RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
@@ -1115,10 +1118,34 @@ namespace NzbDrone.Core.Parser
             return seriesTitleInfo;
         }
 
+        private static string TrimLookupReleaseSuffix(string title)
+        {
+            var parts = title.Split(' ').Where(p => p.IsNotNullOrWhiteSpace()).ToList();
+
+            for (var i = parts.Count - 1; i > 0; i--)
+            {
+                var suffix = string.Join(" ", parts.Skip(i));
+
+                if (QualityParser.ParseQualityName(suffix).Quality != Qualities.Quality.Unknown)
+                {
+                    var titlePartEnd = i;
+
+                    while (titlePartEnd > 0 && LookupAdjacentReleaseTokenRegex.IsMatch(parts[titlePartEnd - 1].Trim('-', '_', '.', '[', ']', '(', ')')))
+                    {
+                        titlePartEnd--;
+                    }
+
+                    return string.Join(" ", parts.Take(titlePartEnd));
+                }
+            }
+
+            return title;
+        }
+
         private static ParsedEpisodeInfo ParseMatchCollection(MatchCollection matchCollection, string releaseTitle)
         {
             var seriesName = matchCollection[0].Groups["title"].Value.Replace('.', ' ').Replace('_', ' ');
-            seriesName = RequestInfoRegex.Replace(seriesName, "").Trim(' ');
+            seriesName = TrimLookupReleaseSuffix(RequestInfoRegex.Replace(seriesName, "").Trim(' '));
 
             int.TryParse(matchCollection[0].Groups["airyear"].Value, out var airYear);
 
