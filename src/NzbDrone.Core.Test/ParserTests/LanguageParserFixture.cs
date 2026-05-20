@@ -53,6 +53,7 @@ namespace NzbDrone.Core.Test.ParserTests
         [TestCase("Series Title - S01E01 - Pilot.English.sub")]
         [TestCase("Series Title - S01E01 - Pilot.english.sub")]
         [TestCase("Series S02 (1999–2003)[BDRemux 1080p AVC Esp DD2.0,Ing DTS-HD5.1,Cat DD2.0 Subs][HD-Olimpo][PACK]")]
+        [TestCase("I Picked Up a Celebrity On the Street (2018) - S01 - [tvdb-354997][EN]-1080p.RKTN.WEB-DL.AAC2.0.H264-TreZzoR")]
         public void should_parse_language_english(string postTitle)
         {
             var result = LanguageParser.ParseLanguages(postTitle);
@@ -276,6 +277,23 @@ namespace NzbDrone.Core.Test.ParserTests
             result.Should().Contain(Language.Czech);
         }
 
+        [TestCase("I Picked Up a Celebrity On the Street (2018) - S01 - [tvdb-354997][CZ]-1080p.RKTN.WEB-DL.AAC2.0.H264-TreZzoR")]
+        [TestCase("I Picked Up a Celebrity On the Street (2018) - S01 - [tvdb-354997]CZ-1080p.RKTN.WEB-DL.AAC2.0.H264-TreZzoR")]
+        public void should_parse_language_czech_from_cz_code(string postTitle)
+        {
+            var result = LanguageParser.ParseLanguages(postTitle);
+            result.Should().Contain(Language.Czech);
+        }
+
+        [TestCase("I Picked Up a Celebrity On the Street (2018) - S01 - [tvdb-354997][EN+CZ]-1080p.RKTN.WEB-DL.AAC2.0.H264-TreZzoR")]
+        [TestCase("I Picked Up a Celebrity On the Street (2018) - S01 - [tvdb-354997]EN+CZ-1080p.RKTN.WEB-DL.AAC2.0.H264-TreZzoR")]
+        public void should_parse_language_english_and_czech_from_plus_separated_codes(string postTitle)
+        {
+            var result = LanguageParser.ParseLanguages(postTitle);
+            result.Should().Contain(Language.English);
+            result.Should().Contain(Language.Czech);
+        }
+
         [TestCase("Series Title.S01.ARABIC.COMPLETE.720p.NF.WEBRip.x264-PTV")]
         public void should_parse_language_arabic(string postTitle)
         {
@@ -320,9 +338,19 @@ namespace NzbDrone.Core.Test.ParserTests
 
         [TestCase("Title.the.Series.2022.S02E22.Slovak.HDTV.XviD-LOL")]
         [TestCase("Title.the.Series.2021.S01E11.HDTV.XviD.ENG.SK-LOL")]
+        [TestCase("I Picked Up a Celebrity On the Street (2018) - S01 - [tvdb-354997][SK]-1080p.RKTN.WEB-DL.AAC2.0.H264-TreZzoR")]
         public void should_parse_language_slovak(string postTitle)
         {
             var result = LanguageParser.ParseLanguages(postTitle);
+            result.Should().Contain(Language.Slovak);
+        }
+
+        [TestCase("I Picked Up a Celebrity On the Street (2018) - S01 - [tvdb-354997][EN+SK]-1080p.RKTN.WEB-DL.AAC2.0.H264-TreZzoR")]
+        [TestCase("I Picked Up a Celebrity On the Street (2018) - S01 - [tvdb-354997]EN+SK-1080p.RKTN.WEB-DL.AAC2.0.H264-TreZzoR")]
+        public void should_parse_language_english_and_slovak_from_plus_separated_codes(string postTitle)
+        {
+            var result = LanguageParser.ParseLanguages(postTitle);
+            result.Should().Contain(Language.English);
             result.Should().Contain(Language.Slovak);
         }
 

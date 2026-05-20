@@ -23,7 +23,7 @@ namespace NzbDrone.Core.Parser
         private static readonly Regex LanguageRegex = new Regex(@"(?:\W|_)(?<english>\b(?:ing|eng)\b)|(?<italian>\b(?:ita|italian)\b)|(?<german>german\b|videomann|ger[. ]dub)|(?<flemish>flemish)|(?<greek>greek)|(?<french>(?:\W|_)(?:FR|VF|VF2|VFF|VFI|VFQ|TRUEFRENCH|FRENCH)(?:\W|_))|(?<russian>\b(?:rus|ru)\b)|(?<hungarian>\b(?:HUNDUB|HUN)\b)|(?<hebrew>\bHebDub\b)|(?<polish>\b(?:PL\W?DUB|DUB\W?PL|LEK\W?PL|PL\W?LEK)\b)|(?<chinese>\[(?:CH[ST]|BIG5|GB)\]|简|繁|字幕)|(?<bulgarian>\bbgaudio\b)|(?<spanish>\b(?:español|castellano|esp|spa(?!\(Latino\)))\b)|(?<ukrainian>\b(?:\dx?)?(?:ukr))|(?<thai>\b(?:THAI)\b)|(?<romanian>\b(?:RoDubbed|ROMANIAN)\b)|(?<catalan>[-,. ]cat[. ](?:DD|subs)|\b(?:catalan|catalán)\b)|(?<latvian>\b(?:lat|lav|lv)\b)|(?<turkish>\b(?:tur)\b)|(?<original>\b(?:orig|original)\b)",
                                                                 RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-        private static readonly Regex CaseSensitiveLanguageRegex = new Regex(@"(?:(?i)(?<!SUB[\W|_|^]))(?:(?<lithuanian>\bLT\b)|(?<czech>\bCZ\b)|(?<polish>\bPL\b)|(?<bulgarian>\bBG\b)|(?<slovak>\bSK\b))(?:(?i)(?![\W|_|^]SUB))",
+        private static readonly Regex CaseSensitiveLanguageRegex = new Regex(@"(?:(?i)(?<!SUB[\W|_|^]))(?:(?<english>\bEN\b)|(?<lithuanian>\bLT\b)|(?<czech>\bCZ\b)|(?<polish>\bPL\b)|(?<bulgarian>\bBG\b)|(?<slovak>\bSK\b))(?:(?i)(?![\W|_|^]SUB))",
                                                                 RegexOptions.Compiled);
 
         private static readonly Regex GermanDualLanguageRegex = new (@"(?<!WEB[-_. ]?)\bDL\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -339,31 +339,39 @@ namespace NzbDrone.Core.Parser
             var languages = new List<Language>();
 
             // Case sensitive
-            var caseSensitiveMatch = CaseSensitiveLanguageRegex.Match(title);
+            var caseSensitiveMatches = CaseSensitiveLanguageRegex.Matches(title);
 
-            if (caseSensitiveMatch.Groups["lithuanian"].Captures.Any())
+            foreach (Match match in caseSensitiveMatches)
             {
-                languages.Add(Language.Lithuanian);
-            }
+                if (match.Groups["lithuanian"].Captures.Any())
+                {
+                    languages.Add(Language.Lithuanian);
+                }
 
-            if (caseSensitiveMatch.Groups["czech"].Captures.Any())
-            {
-                languages.Add(Language.Czech);
-            }
+                if (match.Groups["english"].Captures.Any())
+                {
+                    languages.Add(Language.English);
+                }
 
-            if (caseSensitiveMatch.Groups["polish"].Captures.Any())
-            {
-                languages.Add(Language.Polish);
-            }
+                if (match.Groups["czech"].Captures.Any())
+                {
+                    languages.Add(Language.Czech);
+                }
 
-            if (caseSensitiveMatch.Groups["bulgarian"].Captures.Any())
-            {
-                languages.Add(Language.Bulgarian);
-            }
+                if (match.Groups["polish"].Captures.Any())
+                {
+                    languages.Add(Language.Polish);
+                }
 
-            if (caseSensitiveMatch.Groups["slovak"].Captures.Any())
-            {
-                languages.Add(Language.Slovak);
+                if (match.Groups["bulgarian"].Captures.Any())
+                {
+                    languages.Add(Language.Bulgarian);
+                }
+
+                if (match.Groups["slovak"].Captures.Any())
+                {
+                    languages.Add(Language.Slovak);
+                }
             }
 
             // Case insensitive
