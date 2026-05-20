@@ -145,6 +145,32 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport
         }
 
         [Test]
+        public void should_not_apply_multi_episode_folder_range_to_each_file_when_multiple_files_are_unclear()
+        {
+            var files = new List<string>
+                {
+                    @"C:\Test\Cyril a Metodej - Apostolove Slovanu E01-E04 CZ TvRip 1080p 2013\Poselstvi.mkv".AsOsAgnostic(),
+                    @"C:\Test\Cyril a Metodej - Apostolove Slovanu E01-E04 CZ TvRip 1080p 2013\Neklidne casy.mkv".AsOsAgnostic()
+                };
+
+            var localEpisodes = new List<LocalEpisode>();
+
+            Mocker.GetMock<IAggregationService>()
+                  .Setup(c => c.Augment(It.IsAny<LocalEpisode>(), It.IsAny<DownloadClientItem>()))
+                  .Callback<LocalEpisode, DownloadClientItem>((localEpisode, downloadClientItem) =>
+                  {
+                      localEpisodes.Add(localEpisode);
+                  });
+
+            var result = Subject.GetImportDecisions(files, _series, null, null, false, false);
+
+            result.Should().HaveCount(2);
+            localEpisodes.Should().HaveCount(2);
+            localEpisodes.Should().OnlyContain(localEpisode => localEpisode.OtherVideoFiles);
+            localEpisodes.Select(localEpisode => localEpisode.FileEpisodeInfo).Should().OnlyContain(fileEpisodeInfo => fileEpisodeInfo == null);
+        }
+
+        [Test]
         public void should_have_same_number_of_rejections_as_specs_that_failed()
         {
             GivenAugmentationSuccess();

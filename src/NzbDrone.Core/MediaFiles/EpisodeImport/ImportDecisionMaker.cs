@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.Disk;
@@ -124,7 +125,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
 
             try
             {
-                var fileEpisodeInfo = Parser.Parser.ParsePath(localEpisode.Path, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
+                var fileEpisodeInfo = GetFileEpisodeInfo(localEpisode.Path, otherFiles);
 
                 localEpisode.FileEpisodeInfo = fileEpisodeInfo;
                 localEpisode.Size = _diskProvider.GetFileSize(localEpisode.Path);
@@ -215,6 +216,54 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
             }
 
             return null;
+        }
+
+        private ParsedEpisodeInfo GetFileEpisodeInfo(string path, bool otherFiles)
+        {
+            var fileEpisodeInfo = Parser.Parser.ParsePath(path, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
+
+            if (!otherFiles || !HasEpisodeRange(fileEpisodeInfo))
+            {
+                return fileEpisodeInfo;
+            }
+
+            var fileNameEpisodeInfo = Parser.Parser.ParseTitle(Path.GetFileName(path), _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
+
+            if (HasSameEpisodeInfo(fileEpisodeInfo, fileNameEpisodeInfo))
+            {
+                return fileEpisodeInfo;
+            }
+
+            _logger.Debug("Ignoring multi-episode parse from folder for {0}; multiple video files require file-level episode info", path);
+
+            return null;
+        }
+
+        private static bool HasEpisodeRange(ParsedEpisodeInfo episodeInfo)
+        {
+            return episodeInfo != null &&
+                   (episodeInfo.FullSeason ||
+                    episodeInfo.IsPartialSeason ||
+                    episodeInfo.IsMultiSeason ||
+                    episodeInfo.EpisodeNumbers.Length > 1 ||
+                    episodeInfo.AbsoluteEpisodeNumbers.Length > 1 ||
+                    episodeInfo.SpecialAbsoluteEpisodeNumbers.Length > 1);
+        }
+
+        private static bool HasSameEpisodeInfo(ParsedEpisodeInfo first, ParsedEpisodeInfo second)
+        {
+            if (first == null || second == null)
+            {
+                return false;
+            }
+
+            return first.FullSeason == second.FullSeason &&
+                   first.IsPartialSeason == second.IsPartialSeason &&
+                   first.IsMultiSeason == second.IsMultiSeason &&
+                   first.SeasonNumber == second.SeasonNumber &&
+                   first.EpisodeNumbers.SequenceEqual(second.EpisodeNumbers) &&
+                   first.AbsoluteEpisodeNumbers.SequenceEqual(second.AbsoluteEpisodeNumbers) &&
+                   first.SpecialAbsoluteEpisodeNumbers.SequenceEqual(second.SpecialAbsoluteEpisodeNumbers);
         }
 
         private int GetNonSampleVideoFileCount(List<string> videoFiles, Series series, ParsedEpisodeInfo downloadClientItemInfo, ParsedEpisodeInfo folderInfo)

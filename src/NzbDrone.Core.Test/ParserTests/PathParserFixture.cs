@@ -87,6 +87,10 @@ namespace NzbDrone.Core.Test.ParserTests
 
         [TestCase(@"C:\Test\Pribeh Heavy Metalu E01-E11 CZ TvRip 720p 2011-2014 Dokument\Pribeh Heavy Metalu 2. dil.mkv", 2)]
         [TestCase(@"C:\Test\Pribeh Heavy Metalu E01-E11 CZ TvRip 720p 2011-2014 Dokument\Pribeh Heavy Metalu 10. dil.mkv", 10)]
+        [TestCase(@"C:\Test\Cyril a Metodej - Apostolove Slovanu E01-E04 CZ TvRip 1080p 2013\Cyril a Metodej - Apostolove Slovanu -1.  Bratri ze Solune.mkv", 1)]
+        [TestCase(@"C:\Test\Cyril a Metodej - Apostolove Slovanu E01-E04 CZ TvRip 1080p 2013\Cyril a Metodej - Apostolove Slovanu - 2. Poselstvi.mkv", 2)]
+        [TestCase(@"C:\Test\Cyril a Metodej - Apostolove Slovanu E01-E04 CZ TvRip 1080p 2013\Cyril a Metodej - Apostolove Slovanu - 3. Neklidne casy.mkv", 3)]
+        [TestCase(@"C:\Test\Cyril a Metodej - Apostolove Slovanu E01-E04 CZ TvRip 1080p 2013\Cyril a Metodej - Apostolove Slovanu - 4. Odkaz.mkv", 4)]
         public void should_narrow_episode_only_folder_range_using_numbered_file_name(string path, int episode)
         {
             var result = Parser.Parser.ParsePath(path.AsOsAgnostic(), false, true);

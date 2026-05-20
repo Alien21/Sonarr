@@ -594,7 +594,7 @@ namespace NzbDrone.Core.Parser
         private static readonly Regex DuplicateSpacesRegex = new Regex(@"\s{2,}", RegexOptions.Compiled);
         private static readonly Regex SeasonFolderRegex = new Regex(@"^(?:S|Season|Saison|Series|Stagione)[-_. ]*(?<season>(?<!\d+)\d{1,4}(?!\d+))(?:[_. ]+(?!\d+)|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex SimpleEpisodeNumberRegex = new Regex(@"^[ex]?(?<episode>(?<!\d+)\d{1,3}(?!\d+))(?:[ex-](?<episode>(?<!\d+)\d{1,3}(?!\d+)))?(?:[_. ](?!\d+)(?<remaining>.+)|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private static readonly Regex NumberedEpisodeFileRegex = new Regex(@"(?:^|[ ._-])(?<episode>\d{1,3})[ ._-]*(?:dil|d\u00EDl)(?:[ ._-]|$)|(?:^|[ ._-])(?:dil|d\u00EDl)[ ._-]*(?<episode>\d{1,3})(?:[ ._-]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex NumberedEpisodeFileRegex = new Regex(@"(?:^|[ ._-])(?<episode>\d{1,3})[ ._-]*(?:dil|d\u00EDl)(?:[ ._-]|$)|(?:^|[ ._-])(?:dil|d\u00EDl)[ ._-]*(?<episode>\d{1,3})(?:[ ._-]|$)|(?:^|[ ._-])(?<episode>\d{1,3})\.[ _-]*(?=\p{L})", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly Regex RequestInfoRegex = new Regex(@"^(?:\[.+?\])+", RegexOptions.Compiled);
         private static readonly Regex TvdbIdRegex = new Regex(@"(?:\[\s*|\(\s*)tvdb\s*[-:]?\s*(?<id>\d+)\s*(?:\]|\))", RegexOptions.IgnoreCase | RegexOptions.Compiled);
