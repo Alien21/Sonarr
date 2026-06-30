@@ -1346,7 +1346,8 @@ namespace NzbDrone.Core.Download
         private string GetExistingEpisodeAutoImportDecisionBlockReason(List<ImportDecision> decisions)
         {
             var rejectionMessages = decisions
-                .Where(decision => IsExistingEpisodeAutoImportBypassCandidate(decision.LocalEpisode))
+                .Where(decision => IsExistingEpisodeAutoImportBypassCandidate(decision.LocalEpisode) ||
+                                   decision.Rejections.Any(rejection => rejection.Reason == ImportRejectionReason.DualAudioUpgradeManualReview))
                 .SelectMany(decision => decision.Rejections)
                 .Where(rejection => !GenericExistingEpisodeImportRejectionReasons.Contains(rejection.Reason))
                 .Select(rejection => rejection.Message)
