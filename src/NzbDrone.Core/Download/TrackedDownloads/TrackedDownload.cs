@@ -64,6 +64,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
     public class AnalyzedDownloadFile
     {
         public string Path { get; set; }
+        public long Size { get; set; }
         public QualityModel Quality { get; set; }
         public List<Language> Languages { get; set; }
         public List<Language> SubtitleLanguages { get; set; }

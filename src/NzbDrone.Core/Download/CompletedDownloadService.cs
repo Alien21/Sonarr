@@ -871,6 +871,7 @@ namespace NzbDrone.Core.Download
             return new AnalyzedDownloadFile
             {
                 Path = localEpisode.Path,
+                Size = localEpisode.Size,
                 Quality = localEpisode.Quality,
                 Languages = localEpisode.Languages,
                 SubtitleLanguages = GetSubtitleLanguages(localEpisode)

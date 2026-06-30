@@ -62,6 +62,7 @@ namespace NzbDrone.Core.Queue
             var languages = GetQueueLanguages(trackedDownload, episode);
             var subtitleLanguages = GetQueueSubtitleLanguages(trackedDownload, episode);
             var quality = GetQueueQuality(trackedDownload, episode);
+            var size = GetQueueSize(trackedDownload, episode);
 
             var queue = new Queue
             {
@@ -71,7 +72,7 @@ namespace NzbDrone.Core.Queue
                 SubtitleLanguages = subtitleLanguages,
                 Quality = quality,
                 Title = Parser.Parser.RemoveFileExtension(trackedDownload.DownloadItem.Title),
-                Size = trackedDownload.DownloadItem.TotalSize,
+                Size = size,
                 SizeLeft = trackedDownload.DownloadItem.RemainingSize,
                 TimeLeft = trackedDownload.DownloadItem.RemainingTime,
                 Status = Enum.TryParse(trackedDownload.DownloadItem.Status.ToString(), out QueueStatus outValue) ? outValue : QueueStatus.Unknown,
@@ -162,6 +163,18 @@ namespace NzbDrone.Core.Queue
             }
 
             return new QualityModel(Quality.Unknown);
+        }
+
+        private decimal GetQueueSize(TrackedDownload trackedDownload, Episode episode)
+        {
+            if (episode != null &&
+                trackedDownload.AnalyzedEpisodeFiles?.TryGetValue(episode.Id, out var analyzedEpisode) == true &&
+                analyzedEpisode.Size > 0)
+            {
+                return analyzedEpisode.Size;
+            }
+
+            return trackedDownload.DownloadItem.TotalSize;
         }
 
         private bool HasKnownLanguages(List<Language> languages)
