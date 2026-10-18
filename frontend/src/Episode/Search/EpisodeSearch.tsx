@@ -1,50 +1,55 @@
-import React, { useCallback, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import AppState from 'App/State/AppState';
-import * as commandNames from 'Commands/commandNames';
+import React, { RefObject, useCallback, useState } from 'react';
+import CommandNames from 'Commands/CommandNames';
+import { useExecuteCommand } from 'Commands/useCommands';
 import Icon from 'Components/Icon';
 import Button from 'Components/Link/Button';
 import { icons, kinds, sizes } from 'Helpers/Props';
 import InteractiveSearch from 'InteractiveSearch/InteractiveSearch';
-import { executeCommand } from 'Store/Actions/commandActions';
+import useReleases from 'InteractiveSearch/useReleases';
 import translate from 'Utilities/String/translate';
-import styles from './EpisodeSearch.css';
+import styles from './EpisodeSearch.module.css';
 
 interface EpisodeSearchProps {
   episodeId: number;
   startInteractiveSearch: boolean;
+  scrollerRef: RefObject<HTMLDivElement>;
   onModalClose: () => void;
 }
 
 function EpisodeSearch({
   episodeId,
   startInteractiveSearch,
+  scrollerRef,
   onModalClose,
 }: EpisodeSearchProps) {
-  const dispatch = useDispatch();
-  const { isPopulated } = useSelector((state: AppState) => state.releases);
+  const executeCommand = useExecuteCommand();
+  const { isFetched } = useReleases({ episodeId }, { enabled: false });
 
   const [isInteractiveSearchOpen, setIsInteractiveSearchOpen] = useState(
-    startInteractiveSearch || isPopulated
+    startInteractiveSearch || isFetched
   );
 
   const handleQuickSearchPress = useCallback(() => {
-    dispatch(
-      executeCommand({
-        name: commandNames.EPISODE_SEARCH,
-        episodeIds: [episodeId],
-      })
-    );
+    executeCommand({
+      name: CommandNames.EpisodeSearch,
+      episodeIds: [episodeId],
+    });
 
     onModalClose();
-  }, [episodeId, dispatch, onModalClose]);
+  }, [episodeId, executeCommand, onModalClose]);
 
   const handleInteractiveSearchPress = useCallback(() => {
     setIsInteractiveSearchOpen(true);
   }, []);
 
   if (isInteractiveSearchOpen) {
-    return <InteractiveSearch type="episode" searchPayload={{ episodeId }} />;
+    return (
+      <InteractiveSearch
+        type="episode"
+        searchPayload={{ episodeId }}
+        scrollerRef={scrollerRef}
+      />
+    );
   }
 
   return (

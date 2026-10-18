@@ -22,6 +22,7 @@ namespace Sonarr.Api.V3.Config
         public string ChownGroup { get; set; }
 
         public EpisodeTitleRequiredType EpisodeTitleRequired { get; set; }
+        public bool SkipFreeSpaceCheckWhenGrabbing { get; set; }
         public bool SkipFreeSpaceCheckWhenImporting { get; set; }
         public int MinimumFreeSpaceWhenImporting { get; set; }
         public bool CopyUsingHardlinks { get; set; }
@@ -32,6 +33,9 @@ namespace Sonarr.Api.V3.Config
         public bool EnableMediaInfo { get; set; }
         public string DefaultRootFolderForAutoImport { get; set; }
         public int DefaultProfileForAutoImport { get; set; }
+        public string UserRejectedExtensions { get; set; }
+        public SeasonPackUpgradeType SeasonPackUpgrade { get; set; }
+        public double SeasonPackUpgradeThreshold { get; set; }
     }
 
     public static class MediaManagementConfigResourceMapper
@@ -55,6 +59,7 @@ namespace Sonarr.Api.V3.Config
 
                 EpisodeTitleRequired = model.EpisodeTitleRequired,
                 SkipFreeSpaceCheckWhenImporting = model.SkipFreeSpaceCheckWhenImporting,
+                SkipFreeSpaceCheckWhenGrabbing = model.SkipFreeSpaceCheckWhenGrabbing,
                 MinimumFreeSpaceWhenImporting = model.MinimumFreeSpaceWhenImporting,
                 CopyUsingHardlinks = model.CopyUsingHardlinks,
                 UseScriptImport = model.UseScriptImport,
@@ -63,7 +68,10 @@ namespace Sonarr.Api.V3.Config
                 ExtraFileExtensions = model.ExtraFileExtensions,
                 EnableMediaInfo = model.EnableMediaInfo,
                 DefaultRootFolderForAutoImport = model.DefaultRootFolderForAutoImport,
-                DefaultProfileForAutoImport = model.DefaultProfileForAutoImport
+                DefaultProfileForAutoImport = model.DefaultProfileForAutoImport,
+                UserRejectedExtensions = model.UserRejectedExtensions,
+                SeasonPackUpgrade = model.SeasonPackUpgrade,
+                SeasonPackUpgradeThreshold = model.SeasonPackUpgradeThreshold
             };
         }
     }

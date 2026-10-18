@@ -7,7 +7,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useSelector } from 'react-redux';
 import { FixedSizeList as List, ListChildComponentProps } from 'react-window';
 import TextInput from 'Components/Form/TextInput';
 import Button from 'Components/Link/Button';
@@ -20,14 +19,14 @@ import Column from 'Components/Table/Column';
 import VirtualTableRowButton from 'Components/Table/VirtualTableRowButton';
 import { scrollDirections } from 'Helpers/Props';
 import Series from 'Series/Series';
-import createAllSeriesSelector from 'Store/Selectors/createAllSeriesSelector';
+import useSeries from 'Series/useSeries';
 import dimensions from 'Styles/Variables/dimensions';
 import { InputChanged } from 'typings/inputs';
 import sortByProp from 'Utilities/Array/sortByProp';
 import translate from 'Utilities/String/translate';
 import SelectSeriesModalTableHeader from './SelectSeriesModalTableHeader';
 import SelectSeriesRow from './SelectSeriesRow';
-import styles from './SelectSeriesModalContent.css';
+import styles from './SelectSeriesModalContent.module.css';
 
 const columns = [
   {
@@ -52,7 +51,7 @@ const columns = [
   },
 ];
 
-const bodyPadding = parseInt(dimensions.pageContentBodyPadding);
+const bodyPadding = dimensions.pageContentBodyPadding;
 
 function normalizeSeriesFilterValue(value: string | undefined | null) {
   return jdu
@@ -60,14 +59,6 @@ function normalizeSeriesFilterValue(value: string | undefined | null) {
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, '')
     .trim();
-}
-
-function getSeriesSearchValues(series: Series) {
-  return [
-    series.title,
-    series.defaultTitle,
-    ...(series.alternateTitles ?? []).map(({ title }) => title),
-  ].filter((value): value is string => !!value);
 }
 
 interface SelectSeriesModalContentProps {
@@ -83,7 +74,7 @@ interface RowItemData {
 }
 
 function Row({ index, style, data }: ListChildComponentProps<RowItemData>) {
-  const { items, columns, onSeriesSelect } = data;
+  const { items, onSeriesSelect } = data;
   const series = index >= items.length ? null : items[index];
 
   const handlePress = useCallback(() => {
@@ -107,13 +98,10 @@ function Row({ index, style, data }: ListChildComponentProps<RowItemData>) {
     >
       <SelectSeriesRow
         key={series.id}
-        id={series.id}
         title={series.title}
         tvdbId={series.tvdbId}
         imdbId={series.imdbId}
         year={series.year}
-        columns={columns}
-        onSeriesSelect={onSeriesSelect}
       />
     </VirtualTableRowButton>
   );
@@ -124,7 +112,7 @@ function SelectSeriesModalContent(props: SelectSeriesModalContentProps) {
 
   const listRef = useRef<List<RowItemData>>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const allSeries: Series[] = useSelector(createAllSeriesSelector());
+  const { data: allSeries = [] } = useSeries();
   const [filter, setFilter] = useState('');
   const [size, setSize] = useState({ width: 0, height: 0 });
   const windowHeight = window.innerHeight;
@@ -190,16 +178,20 @@ function SelectSeriesModalContent(props: SelectSeriesModalContentProps) {
   const items = useMemo(() => {
     const filterValue = normalizeSeriesFilterValue(filter);
     const idFilterValue = filter.trim().toLowerCase();
-
-    if (!filterValue && !idFilterValue) {
-      return sortedSeries;
-    }
-
+    if (!filterValue && !idFilterValue) return sortedSeries;
     return sortedSeries.filter((item) => {
+      const titles = [
+        item.title,
+        item.defaultTitle,
+        item.originalTitle,
+        ...(item.alternateTitles ?? []).map(({ title }) => title),
+        ...(item.translations ?? []).map(({ title }) => title),
+      ];
       return (
-        getSeriesSearchValues(item).some((value) =>
-          normalizeSeriesFilterValue(value).includes(filterValue)
-        ) ||
+        (filterValue &&
+          titles.some((title) =>
+            normalizeSeriesFilterValue(title).includes(filterValue)
+          )) ||
         item.tvdbId.toString().includes(idFilterValue) ||
         item.imdbId?.toLowerCase().includes(idFilterValue)
       );

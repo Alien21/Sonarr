@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import StackTrace from 'stacktrace-js';
 import translate from 'Utilities/String/translate';
-import styles from './ErrorBoundaryError.css';
+import styles from './ErrorBoundaryError.module.css';
 
-interface ErrorBoundaryErrorProps {
+export interface ErrorBoundaryErrorProps {
   className: string;
   messageClassName: string;
   detailsClassName: string;

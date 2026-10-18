@@ -1,11 +1,10 @@
-import React, { useCallback, useMemo } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import AppState from 'App/State/AppState';
+import React, { useCallback, useEffect } from 'react';
 import Alert from 'Components/Alert';
 import Form from 'Components/Form/Form';
-import FormGroup from 'Components/Form/FormGroup';
-import FormInputGroup from 'Components/Form/FormInputGroup';
+import FormInput from 'Components/Form/FormInput';
+import FormInputHelpText from 'Components/Form/FormInputHelpText';
 import FormLabel from 'Components/Form/FormLabel';
+import FormRow from 'Components/Form/FormRow';
 import ProviderFieldFormGroup from 'Components/Form/ProviderFieldFormGroup';
 import Button from 'Components/Link/Button';
 import SpinnerErrorButton from 'Components/Link/SpinnerErrorButton';
@@ -13,16 +12,13 @@ import ModalBody from 'Components/Modal/ModalBody';
 import ModalContent from 'Components/Modal/ModalContent';
 import ModalFooter from 'Components/Modal/ModalFooter';
 import ModalHeader from 'Components/Modal/ModalHeader';
+import usePrevious from 'Helpers/Hooks/usePrevious';
 import { inputTypes } from 'Helpers/Props';
-import {
-  saveMetadata,
-  setMetadataFieldValue,
-  setMetadataValue,
-} from 'Store/Actions/settingsActions';
-import selectSettings from 'Store/Selectors/selectSettings';
 import { InputChanged } from 'typings/inputs';
+import Metadata from 'typings/Metadata';
 import translate from 'Utilities/String/translate';
-import styles from './EditMetadataModalContent.css';
+import { useManageMetadata } from '../useMetadata';
+import styles from './EditMetadataModalContent.module.css';
 
 export interface EditMetadataModalContentProps {
   id: number;
@@ -35,46 +31,51 @@ function EditMetadataModalContent({
   advancedSettings,
   onModalClose,
 }: EditMetadataModalContentProps) {
-  const dispatch = useDispatch();
+  const {
+    item,
+    updateValue,
+    updateFieldValue,
+    saveProvider,
+    isSaving,
+    saveError,
+    ...otherSettings
+  } = useManageMetadata(id);
 
-  const { isSaving, saveError, pendingChanges, items } = useSelector(
-    (state: AppState) => state.settings.metadata
-  );
+  const wasSaving = usePrevious(isSaving);
 
-  const { settings, ...otherSettings } = useMemo(() => {
-    const item = items.find((item) => item.id === id)!;
-
-    return selectSettings(item, pendingChanges, saveError);
-  }, [id, items, pendingChanges, saveError]);
-
-  const { name, enable, fields, message } = settings;
+  const { name, enable, fields, message } = item;
 
   const handleInputChange = useCallback(
     ({ name, value }: InputChanged) => {
-      // @ts-expect-error not typed
-      dispatch(setMetadataValue({ name, value }));
+      const key = name as keyof Metadata;
+
+      updateValue(key, value as Metadata[typeof key]);
     },
-    [dispatch]
+    [updateValue]
   );
 
   const handleFieldChange = useCallback(
     ({ name, value }: InputChanged) => {
-      // @ts-expect-error not typed
-      dispatch(setMetadataFieldValue({ name, value }));
+      updateFieldValue?.({ [name]: value });
     },
-    [dispatch]
+    [updateFieldValue]
   );
 
   const handleSavePress = useCallback(() => {
-    dispatch(saveMetadata({ id }));
-  }, [id, dispatch]);
+    saveProvider();
+  }, [saveProvider]);
+
+  useEffect(() => {
+    if (wasSaving && !isSaving && !saveError) {
+      onModalClose();
+    }
+  }, [isSaving, wasSaving, saveError, onModalClose]);
 
   return (
     <ModalContent onModalClose={onModalClose}>
       <ModalHeader>
         {translate('EditMetadata', { metadataType: name.value })}
       </ModalHeader>
-
       <ModalBody>
         <Form {...otherSettings}>
           {message ? (
@@ -83,17 +84,16 @@ function EditMetadataModalContent({
             </Alert>
           ) : null}
 
-          <FormGroup>
+          <FormRow>
             <FormLabel>{translate('Enable')}</FormLabel>
-
-            <FormInputGroup
+            <FormInputHelpText text={translate('EnableMetadataHelpText')} />
+            <FormInput
               type={inputTypes.CHECK}
               name="enable"
-              helpText={translate('EnableMetadataHelpText')}
               {...enable}
               onChange={handleInputChange}
             />
-          </FormGroup>
+          </FormRow>
 
           {fields.map((field) => {
             return (
@@ -109,7 +109,6 @@ function EditMetadataModalContent({
           })}
         </Form>
       </ModalBody>
-
       <ModalFooter>
         <Button onPress={onModalClose}>{translate('Cancel')}</Button>
 

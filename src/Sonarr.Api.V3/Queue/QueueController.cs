@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Blocklisting;
@@ -22,13 +23,14 @@ using Sonarr.Http.Extensions;
 using Sonarr.Http.REST;
 using Sonarr.Http.REST.Attributes;
 
+#pragma warning disable CS0612
 namespace Sonarr.Api.V3.Queue
 {
     [V3ApiController]
     public class QueueController : RestControllerWithSignalR<QueueResource, NzbDrone.Core.Queue.Queue>,
-                               IHandle<QueueUpdatedEvent>, IHandle<PendingReleasesUpdatedEvent>
+                               IHandle<ObsoleteQueueUpdatedEvent>, IHandle<PendingReleasesUpdatedEvent>
     {
-        private readonly IQueueService _queueService;
+        private readonly IObsoleteQueueService _queueService;
         private readonly IPendingReleaseService _pendingReleaseService;
 
         private readonly QualityModelComparer _qualityComparer;
@@ -40,7 +42,7 @@ namespace Sonarr.Api.V3.Queue
         private readonly ISeriesResourceService _seriesResourceService;
 
         public QueueController(IBroadcastSignalRMessage broadcastSignalRMessage,
-                           IQueueService queueService,
+                           IObsoleteQueueService queueService,
                            IPendingReleaseService pendingReleaseService,
                            IQualityProfileService qualityProfileService,
                            ITrackedDownloadService trackedDownloadService,
@@ -64,7 +66,7 @@ namespace Sonarr.Api.V3.Queue
         }
 
         [NonAction]
-        public override ActionResult<QueueResource> GetResourceByIdWithErrorHandler(int id)
+        public override Results<Ok<QueueResource>, NotFound> GetResourceByIdWithErrorHandler(int id)
         {
             return base.GetResourceByIdWithErrorHandler(id);
         }
@@ -77,7 +79,7 @@ namespace Sonarr.Api.V3.Queue
         [RestDeleteById]
         public void RemoveAction(int id, bool removeFromClient = true, bool blocklist = false, bool skipRedownload = false, bool changeCategory = false)
         {
-            var pendingRelease = _pendingReleaseService.FindPendingQueueItem(id);
+            var pendingRelease = _pendingReleaseService.FindPendingQueueItemObsolete(id);
 
             if (pendingRelease != null)
             {
@@ -106,7 +108,7 @@ namespace Sonarr.Api.V3.Queue
 
             foreach (var id in resource.Ids)
             {
-                var pendingRelease = _pendingReleaseService.FindPendingQueueItem(id);
+                var pendingRelease = _pendingReleaseService.FindPendingQueueItemObsolete(id);
 
                 if (pendingRelease != null)
                 {
@@ -179,12 +181,12 @@ namespace Sonarr.Api.V3.Queue
 
             var queue = _queueService.GetQueue();
             var filteredQueue = includeUnknownSeriesItems ? queue : queue.Where(q => q.Series != null);
-            var pending = _pendingReleaseService.GetPendingQueue();
+            var pending = _pendingReleaseService.GetPendingQueueObsolete();
 
-            var hasSeriesIdFilter = seriesIds.Any();
-            var hasLanguageFilter = languages.Any();
-            var hasQualityFilter = quality.Any();
-            var hasStatusFilter = status.Any();
+            var hasSeriesIdFilter = seriesIds is { Count: > 0 };
+            var hasLanguageFilter = languages is { Count: > 0 };
+            var hasQualityFilter = quality is { Count: > 0 };
+            var hasStatusFilter = status is { Count: > 0 };
 
             var fullQueue = filteredQueue.Concat(pending).Where(q =>
             {
@@ -326,10 +328,10 @@ namespace Sonarr.Api.V3.Queue
         {
             if (blocklist)
             {
-                _blocklistService.Block(pendingRelease.RemoteEpisode, "Pending release manually blocklisted");
+                _blocklistService.Block(pendingRelease.RemoteEpisode, "Pending release manually blocklisted", null);
             }
 
-            _pendingReleaseService.RemovePendingQueueItems(pendingRelease.Id);
+            _pendingReleaseService.RemovePendingQueueItemsObsolete(pendingRelease.Id);
         }
 
         private TrackedDownload Remove(TrackedDownload trackedDownload, bool removeFromClient, bool blocklist, bool skipRedownload, bool changeCategory)
@@ -359,7 +361,7 @@ namespace Sonarr.Api.V3.Queue
 
             if (blocklist)
             {
-                _failedDownloadService.MarkAsFailed(trackedDownload, skipRedownload);
+                _failedDownloadService.MarkAsFailed(trackedDownload, null, null, skipRedownload);
             }
 
             if (!removeFromClient && !blocklist && !changeCategory)
@@ -398,7 +400,7 @@ namespace Sonarr.Api.V3.Queue
         }
 
         [NonAction]
-        public void Handle(QueueUpdatedEvent message)
+        public void Handle(ObsoleteQueueUpdatedEvent message)
         {
             BroadcastResourceChange(ModelAction.Sync);
         }
@@ -410,3 +412,4 @@ namespace Sonarr.Api.V3.Queue
         }
     }
 }
+#pragma warning restore CS0612

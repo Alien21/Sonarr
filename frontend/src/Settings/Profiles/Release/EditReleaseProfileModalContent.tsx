@@ -1,66 +1,24 @@
 import React, { useCallback, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { createSelector } from 'reselect';
-import AppState from 'App/State/AppState';
 import Form from 'Components/Form/Form';
-import FormGroup from 'Components/Form/FormGroup';
-import FormInputGroup from 'Components/Form/FormInputGroup';
+import FormInput from 'Components/Form/FormInput';
+import FormInputHelpText from 'Components/Form/FormInputHelpText';
 import FormLabel from 'Components/Form/FormLabel';
+import FormRow from 'Components/Form/FormRow';
 import Button from 'Components/Link/Button';
 import SpinnerErrorButton from 'Components/Link/SpinnerErrorButton';
 import ModalBody from 'Components/Modal/ModalBody';
 import ModalContent from 'Components/Modal/ModalContent';
 import ModalFooter from 'Components/Modal/ModalFooter';
 import ModalHeader from 'Components/Modal/ModalHeader';
+import ModalSection from 'Components/ModalSection';
 import usePrevious from 'Helpers/Hooks/usePrevious';
 import { inputTypes, kinds } from 'Helpers/Props';
-import {
-  saveReleaseProfile,
-  setReleaseProfileValue,
-} from 'Store/Actions/Settings/releaseProfiles';
-import selectSettings from 'Store/Selectors/selectSettings';
-import ReleaseProfile from 'typings/Settings/ReleaseProfile';
+import { InputChanged } from 'typings/inputs';
 import translate from 'Utilities/String/translate';
-import styles from './EditReleaseProfileModalContent.css';
+import { useManageReleaseProfile } from './useReleaseProfiles';
+import styles from './EditReleaseProfileModalContent.module.css';
 
 const tagInputDelimiters = ['Tab', 'Enter'];
-
-const newReleaseProfile: ReleaseProfile = {
-  id: 0,
-  name: '',
-  enabled: true,
-  required: [],
-  ignored: [],
-  tags: [],
-  indexerId: 0,
-};
-
-function createReleaseProfileSelector(id?: number) {
-  return createSelector(
-    (state: AppState) => state.settings.releaseProfiles,
-    (releaseProfiles) => {
-      const { items, isFetching, error, isSaving, saveError, pendingChanges } =
-        releaseProfiles;
-
-      const mapping = id ? items.find((i) => i.id === id)! : newReleaseProfile;
-      const settings = selectSettings<ReleaseProfile>(
-        mapping,
-        pendingChanges,
-        saveError
-      );
-
-      return {
-        id,
-        isFetching,
-        error,
-        isSaving,
-        saveError,
-        item: settings.settings,
-        ...settings,
-      };
-    }
-  );
-}
 
 interface EditReleaseProfileModalContentProps {
   id?: number;
@@ -73,136 +31,213 @@ function EditReleaseProfileModalContent({
   onModalClose,
   onDeleteReleaseProfilePress,
 }: EditReleaseProfileModalContentProps) {
-  const { item, isFetching, isSaving, error, saveError, ...otherProps } =
-    useSelector(createReleaseProfileSelector(id));
+  const {
+    item,
+    isSaving,
+    saveError,
+    validationErrors,
+    validationWarnings,
+    updateValue,
+    saveProvider,
+  } = useManageReleaseProfile(id ?? 0);
 
-  const { name, enabled, required, ignored, tags, indexerId } = item;
+  const {
+    name,
+    enabled,
+    required,
+    ignored,
+    airDateRestriction,
+    airDateGracePeriod,
+    allowSeasonPackWithoutAllEpisodesAired,
+    indexerIds,
+    tags,
+    excludedTags,
+  } = item;
 
-  const dispatch = useDispatch();
-  const previousIsSaving = usePrevious(isSaving);
-
-  useEffect(() => {
-    if (!id) {
-      Object.entries(newReleaseProfile).forEach(([name, value]) => {
-        // @ts-expect-error 'setReleaseProfileValue' isn't typed yet
-        dispatch(setReleaseProfileValue({ name, value }));
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (previousIsSaving && !isSaving && !saveError) {
-      onModalClose();
-    }
-  }, [previousIsSaving, isSaving, saveError, onModalClose]);
-
-  const handleSavePress = useCallback(() => {
-    dispatch(saveReleaseProfile({ id }));
-  }, [dispatch, id]);
+  const wasSaving = usePrevious(isSaving);
 
   const handleInputChange = useCallback(
-    (payload: { name: string; value: string | number }) => {
-      // @ts-expect-error 'setReleaseProfileValue' isn't typed yet
-      dispatch(setReleaseProfileValue(payload));
+    (change: InputChanged) => {
+      // @ts-expect-error - change is not yet typed
+      updateValue(change.name, change.value);
     },
-    [dispatch]
+    [updateValue]
   );
+
+  const handleSavePress = useCallback(() => {
+    saveProvider();
+  }, [saveProvider]);
+
+  useEffect(() => {
+    if (wasSaving && !isSaving && !saveError) {
+      onModalClose();
+    }
+  }, [isSaving, wasSaving, saveError, onModalClose]);
 
   return (
     <ModalContent onModalClose={onModalClose}>
-      <ModalHeader>
+      <ModalHeader subtitle={id ? name.previousValue ?? name.value : undefined}>
         {id ? translate('EditReleaseProfile') : translate('AddReleaseProfile')}
       </ModalHeader>
-
       <ModalBody>
-        <Form {...otherProps}>
-          <FormGroup>
+        <Form
+          validationErrors={validationErrors}
+          validationWarnings={validationWarnings}
+        >
+          <FormRow>
             <FormLabel>{translate('Name')}</FormLabel>
 
-            <FormInputGroup
+            <FormInput
               type={inputTypes.TEXT}
               name="name"
               {...name}
               placeholder={translate('OptionalName')}
-              canEdit={true}
               onChange={handleInputChange}
             />
-          </FormGroup>
+          </FormRow>
 
-          <FormGroup>
+          <FormRow>
             <FormLabel>{translate('EnableProfile')}</FormLabel>
-
-            <FormInputGroup
+            <FormInputHelpText text={translate('EnableProfileHelpText')} />
+            <FormInput
               type={inputTypes.CHECK}
               name="enabled"
-              helpText={translate('EnableProfileHelpText')}
               {...enabled}
               onChange={handleInputChange}
             />
-          </FormGroup>
+          </FormRow>
 
-          <FormGroup>
-            <FormLabel>{translate('MustContain')}</FormLabel>
+          <ModalSection title={translate('ProfileSectionPatterns')}>
+            <FormRow>
+              <FormLabel>{translate('MustContain')}</FormLabel>
+              <FormInputHelpText text={translate('MustContainHelpText')} />
+              <FormInput
+                {...required}
+                inputClassName={styles.tagInternalInput}
+                type={inputTypes.TEXT_TAG}
+                name="required"
+                kind={kinds.SUCCESS}
+                placeholder={translate('AddNewRestriction')}
+                delimiters={tagInputDelimiters}
+                canEdit={true}
+                onChange={handleInputChange}
+              />
+            </FormRow>
 
-            <FormInputGroup
-              {...required}
-              inputClassName={styles.tagInternalInput}
-              type={inputTypes.TEXT_TAG}
-              name="required"
-              helpText={translate('MustContainHelpText')}
-              kind={kinds.SUCCESS}
-              placeholder={translate('AddNewRestriction')}
-              delimiters={tagInputDelimiters}
-              canEdit={true}
-              onChange={handleInputChange}
-            />
-          </FormGroup>
+            <FormRow>
+              <FormLabel>{translate('MustNotContain')}</FormLabel>
+              <FormInputHelpText text={translate('MustNotContainHelpText')} />
+              <FormInput
+                {...ignored}
+                inputClassName={styles.tagInternalInput}
+                type={inputTypes.TEXT_TAG}
+                name="ignored"
+                kind={kinds.DANGER}
+                placeholder={translate('AddNewRestriction')}
+                delimiters={tagInputDelimiters}
+                canEdit={true}
+                onChange={handleInputChange}
+              />
+            </FormRow>
 
-          <FormGroup>
-            <FormLabel>{translate('MustNotContain')}</FormLabel>
+            <FormRow>
+              <FormLabel>{translate('AirDateRestriction')}</FormLabel>
+              <FormInputHelpText
+                text={translate('AirDateRestrictionHelpText')}
+              />
+              <FormInput
+                {...airDateRestriction}
+                type={inputTypes.CHECK}
+                name="airDateRestriction"
+                onChange={handleInputChange}
+              />
+            </FormRow>
 
-            <FormInputGroup
-              {...ignored}
-              inputClassName={styles.tagInternalInput}
-              type={inputTypes.TEXT_TAG}
-              name="ignored"
-              helpText={translate('MustNotContainHelpText')}
-              kind={kinds.DANGER}
-              placeholder={translate('AddNewRestriction')}
-              delimiters={tagInputDelimiters}
-              canEdit={true}
-              onChange={handleInputChange}
-            />
-          </FormGroup>
+            {airDateRestriction.value ? (
+              <FormRow>
+                <FormLabel>{translate('AirDateGracePeriod')}</FormLabel>
+                <FormInputHelpText
+                  text={translate('AirDateGracePeriodHelpText')}
+                />
+                <FormInput
+                  {...airDateGracePeriod}
+                  type={inputTypes.NUMBER}
+                  unit="hours"
+                  name="airDateGracePeriod"
+                  onChange={handleInputChange}
+                />
+              </FormRow>
+            ) : null}
 
-          <FormGroup>
-            <FormLabel>{translate('Indexer')}</FormLabel>
+            <FormRow>
+              <FormLabel>
+                {translate('AllowSeasonPackWithoutAllEpisodesAired')}
+              </FormLabel>
+              <FormInputHelpText
+                text={translate(
+                  'AllowSeasonPackWithoutAllEpisodesAiredHelpText'
+                )}
+              />
+              <FormInputHelpText
+                text={translate(
+                  'AllowSeasonPackWithoutAllEpisodesAiredHelpTextWarning'
+                )}
+                isWarning={true}
+              />
+              <FormInput
+                {...allowSeasonPackWithoutAllEpisodesAired}
+                type={inputTypes.CHECK}
+                name="allowSeasonPackWithoutAllEpisodesAired"
+                onChange={handleInputChange}
+              />
+            </FormRow>
+          </ModalSection>
 
-            <FormInputGroup
-              type={inputTypes.INDEXER_SELECT}
-              name="indexerId"
-              helpText={translate('ReleaseProfileIndexerHelpText')}
-              helpTextWarning={translate(
-                'ReleaseProfileIndexerHelpTextWarning'
-              )}
-              {...indexerId}
-              includeAny={true}
-              onChange={handleInputChange}
-            />
-          </FormGroup>
+          <ModalSection title={translate('ProfileSectionScope')}>
+            <FormRow>
+              <FormLabel>{translate('Indexer')}</FormLabel>
+              <FormInputHelpText
+                text={translate('ReleaseProfileIndexerHelpText')}
+              />
+              <FormInputHelpText
+                text={translate('ReleaseProfileIndexerHelpTextWarning')}
+                isWarning={true}
+              />
+              <FormInput
+                type={inputTypes.INDEXER_SELECT}
+                name="indexerIds"
+                {...indexerIds}
+                onChange={handleInputChange}
+              />
+            </FormRow>
 
-          <FormGroup>
-            <FormLabel>{translate('Tags')}</FormLabel>
+            <FormRow>
+              <FormLabel>{translate('Tags')}</FormLabel>
+              <FormInputHelpText
+                text={translate('ReleaseProfileTagSeriesHelpText')}
+              />
+              <FormInput
+                type={inputTypes.TAG}
+                name="tags"
+                {...tags}
+                onChange={handleInputChange}
+              />
+            </FormRow>
 
-            <FormInputGroup
-              type={inputTypes.TAG}
-              name="tags"
-              helpText={translate('ReleaseProfileTagSeriesHelpText')}
-              {...tags}
-              onChange={handleInputChange}
-            />
-          </FormGroup>
+            <FormRow>
+              <FormLabel>{translate('ExcludedTags')}</FormLabel>
+              <FormInputHelpText
+                text={translate('ReleaseProfileExcludedTagSeriesHelpText')}
+              />
+              <FormInput
+                type={inputTypes.TAG}
+                name="excludedTags"
+                kind={kinds.DANGER}
+                {...excludedTags}
+                onChange={handleInputChange}
+              />
+            </FormRow>
+          </ModalSection>
         </Form>
       </ModalBody>
       <ModalFooter>

@@ -6,6 +6,7 @@ using System.Net;
 using System.Text.RegularExpressions;
 using NLog;
 using NzbDrone.Common.Cloud;
+using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
@@ -16,7 +17,6 @@ using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource.SkyHook.Resource;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Tv;
-using NzbDrone.Core.Tv.Translations;
 
 namespace NzbDrone.Core.MetadataSource.SkyHook
 {
@@ -39,19 +39,28 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
                             Logger logger)
         {
             _httpClient = httpClient;
-            _requestBuilder = requestBuilder.SkyHookTvdb;
             _logger = logger;
             _seriesService = seriesService;
             _dailySeriesService = dailySeriesService;
+            _requestBuilder = requestBuilder.SkyHookTvdb;
             _configService = configService;
             _seriesTranslationProxy = seriesTranslationProxy;
         }
 
         public Tuple<Series, List<Episode>> GetSeriesInfo(int tvdbSeriesId)
         {
+            return GetSeriesInfo(tvdbSeriesId, GetSeriesInfoSearchLanguage(), SeasonType.Official);
+        }
+
+        public Tuple<Series, List<Episode>> GetSeriesInfo(int tvdbSeriesId, Language language, string seasonType)
+        {
+            // Legacy series-info localization keeps the English SkyHook episode titles for naming.
+            language = _configService.UseSeriesInfoLanguage ? Language.English : language ?? GetSeriesInfoSearchLanguage();
+            var isoLanguage = IsoLanguages.Get(language) ?? IsoLanguages.Get(Language.English);
+
             var httpRequest = _requestBuilder.Create()
                                              .SetSegment("route", "shows")
-                                             .Resource(tvdbSeriesId.ToString())
+                                             .Resource($"{isoLanguage.ThreeLetterCode}/{tvdbSeriesId}/{seasonType ?? SeasonType.Official}")
                                              .Build();
 
             httpRequest.AllowAutoRedirect = true;
@@ -79,6 +88,11 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
 
         public List<Series> SearchForNewSeriesByImdbId(string imdbId)
         {
+            return SearchForNewSeriesByImdbId(imdbId, GetSeriesInfoSearchLanguage());
+        }
+
+        public List<Series> SearchForNewSeriesByImdbId(string imdbId, Language language)
+        {
             imdbId = Parser.Parser.NormalizeImdbId(imdbId);
 
             if (imdbId == null)
@@ -86,34 +100,60 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
                 return new List<Series>();
             }
 
-            var results = SearchForNewSeries($"imdb:{imdbId}");
+            var results = SearchForNewSeries($"imdb:{imdbId}", language);
 
             return results;
         }
 
         public List<Series> SearchForNewSeriesByAniListId(int aniListId)
         {
-            var results = SearchForNewSeries($"anilist:{aniListId}");
-
-            return results;
+            return SearchForNewSeriesByAniListId(aniListId, GetSeriesInfoSearchLanguage());
         }
 
-        public List<Series> SearchForNewSeriesByMyAnimeListId(int malId)
+        public List<Series> SearchForNewSeriesByAniListId(int aniListId, Language language)
         {
-            var results = SearchForNewSeries($"mal:{malId}");
+            var results = SearchForNewSeries($"anilist:{aniListId}", language);
 
             return results;
         }
 
         public List<Series> SearchForNewSeriesByTmdbId(int tmdbId)
         {
-            var results = SearchForNewSeries($"tmdb:{tmdbId}");
+            return SearchForNewSeriesByTmdbId(tmdbId, GetSeriesInfoSearchLanguage());
+        }
+
+        public List<Series> SearchForNewSeriesByTmdbId(int tmdbId, Language language)
+        {
+            var results = SearchForNewSeries($"tmdb:{tmdbId}", language);
+
+            return results;
+        }
+
+        public List<Series> SearchForNewSeriesByMyAnimeListId(int malId)
+        {
+            return SearchForNewSeriesByMyAnimeListId(malId, GetSeriesInfoSearchLanguage());
+        }
+
+        public List<Series> SearchForNewSeriesByMyAnimeListId(int malId, Language language)
+        {
+            var results = SearchForNewSeries($"mal:{malId}", language);
 
             return results;
         }
 
         public List<Series> SearchForNewSeries(string title)
         {
+            return SearchForNewSeries(title, GetSeriesInfoSearchLanguage());
+        }
+
+        public List<Series> SearchForNewSeries(string title, Language language)
+        {
+            language ??= GetSeriesInfoSearchLanguage();
+            if (title.IsPathValid(PathValidationType.AnyOs))
+            {
+                throw new InvalidSearchTermException("Invalid search term '{0}'", title);
+            }
+
             try
             {
                 var searchTerm = Regex.Replace(title, @"\s+", " ").Trim();
@@ -131,12 +171,13 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
                     try
                     {
                         var existingSeries = _seriesService.FindByTvdbId(tvdbId);
+
                         if (existingSeries != null)
                         {
                             return new List<Series> { existingSeries };
                         }
 
-                        return new List<Series> { GetSeriesInfo(tvdbId).Item1 };
+                        return new List<Series> { GetSeriesInfo(tvdbId, language, SeasonType.Official).Item1 };
                     }
                     catch (SeriesNotFoundException)
                     {
@@ -144,15 +185,17 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
                     }
                 }
 
+                var isoLanguage = IsoLanguages.Get(language) ?? IsoLanguages.Get(Language.English);
                 var httpRequest = _requestBuilder.Create()
                                                  .SetSegment("route", "search")
+                                                 .AddQueryParam("language", isoLanguage.ThreeLetterCode)
                                                  .AddQueryParam("term", searchTerm.ToLowerInvariant())
                                                  .Build();
 
                 var httpResponse = _httpClient.Get<List<ShowResource>>(httpRequest);
 
                 var results = httpResponse.Resource.SelectList(MapSearchResult);
-                AddSeriesInfoLanguageSearchResults(results, searchTerm);
+                AddSeriesInfoLanguageSearchResults(results, searchTerm, language);
 
                 return results;
             }
@@ -173,9 +216,8 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             }
         }
 
-        private void AddSeriesInfoLanguageSearchResults(List<Series> results, string searchTerm)
+        private void AddSeriesInfoLanguageSearchResults(List<Series> results, string searchTerm, Language language)
         {
-            var language = GetSeriesInfoSearchLanguage();
 
             if (language == Language.English || IsIdSearch(searchTerm))
             {
@@ -196,7 +238,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
                     try
                     {
                         var existingSeries = _seriesService.FindByTvdbId(tvdbId);
-                        results.Add(existingSeries ?? GetSeriesInfo(tvdbId).Item1);
+                        results.Add(existingSeries ?? GetSeriesInfo(tvdbId, language, SeasonType.Official).Item1);
                     }
                     catch (SeriesNotFoundException)
                     {
@@ -253,7 +295,9 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
         private static bool IsExactDefaultTitleMatch(string cleanTitle, Series series)
         {
             return (series.CleanTitle.IsNotNullOrWhiteSpace() && series.CleanTitle == cleanTitle) ||
-                   IsExactTitleMatch(cleanTitle, series.Title);
+                   (series.CleanOriginalTitle.IsNotNullOrWhiteSpace() && series.CleanOriginalTitle == cleanTitle) ||
+                   IsExactTitleMatch(cleanTitle, series.Title) ||
+                   IsExactTitleMatch(cleanTitle, series.OriginalTitle);
         }
 
         private static bool IsExactLocalizedTitleMatch(string cleanTitle, Language seriesInfoLanguage, Series series)
@@ -380,11 +424,21 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
                 series.TmdbId = show.TmdbId.Value;
             }
 
+            var originalTitle = show.Translations?.FirstOrDefault(t => t.Language == show.OriginalLanguage)?.Title;
+            var cleanOriginalTitle = originalTitle.IsNotNullOrWhiteSpace() ? originalTitle.CleanSeriesTitle() : null;
+
+            if (cleanOriginalTitle.IsNullOrWhiteSpace())
+            {
+                cleanOriginalTitle = null;
+            }
+
             series.ImdbId = show.ImdbId;
             series.MalIds = show.MalIds;
             series.AniListIds = show.AniListIds;
             series.Title = show.Title;
-            series.CleanTitle = Parser.Parser.CleanSeriesTitle(show.Title);
+            series.CleanTitle = show.Title.CleanSeriesTitle();
+            series.OriginalTitle = originalTitle;
+            series.CleanOriginalTitle = cleanOriginalTitle;
             series.SortTitle = SeriesTitleNormalizer.Normalize(show.Title, show.TvdbId);
 
             series.OriginalLanguage = show.OriginalLanguage.IsNotNullOrWhiteSpace() ?
@@ -420,6 +474,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             series.Status = MapSeriesStatus(show.Status);
             series.Ratings = MapRatings(show.Rating);
             series.Genres = show.Genres;
+            series.OriginalCountry = show.OriginalCountry;
 
             if (show.ContentRating.IsNotNullOrWhiteSpace())
             {
@@ -432,12 +487,20 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             }
 
             series.Actors = show.Actors.Select(MapActors).ToList();
-            series.Seasons = show.Seasons.Select(MapSeason).ToList();
+            series.Seasons = show.Seasons.Select(MapSeason).DistinctBy(s => s.SeasonNumber).ToList();
             series.Images = show.Images.Select(MapImage).ToList();
 
-            var seriesInfoLanguage = GetSeriesInfoLanguage(series);
-            series.Translations = seriesInfoLanguage == Language.English ? new List<SeriesTranslation>() : _seriesTranslationProxy.GetTranslations(series.TvdbId, seriesInfoLanguage);
             series.Monitored = true;
+
+            series.SeasonTypes = show.SeasonTypes.Select(MapSeasonType).ToList();
+            series.Translations = MapTranslations(show.Translations);
+
+            var seriesInfoLanguage = GetSeriesInfoLanguage(series);
+
+            if (seriesInfoLanguage != Language.English && !series.Translations.Any(t => t.Language == seriesInfoLanguage))
+            {
+                series.Translations.AddRange(_seriesTranslationProxy.GetTranslations(series.TvdbId, seriesInfoLanguage));
+            }
 
             return series;
         }
@@ -512,6 +575,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
             return new Season
             {
                 SeasonNumber = seasonResource.SeasonNumber,
+                Title = seasonResource.Title,
                 Images = seasonResource.Images.Select(MapImage).ToList(),
                 Monitored = seasonResource.SeasonNumber > 0
             };
@@ -570,6 +634,40 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
                 default:
                     return MediaCoverTypes.Unknown;
             }
+        }
+
+        private static SeasonType MapSeasonType(SeasonTypeResource seasonType)
+        {
+            return new SeasonType
+            {
+                Name = seasonType.Name,
+                Type = seasonType.Type,
+                SeasonNumbers = seasonType.SeasonNumbers,
+                EpisodeCount = seasonType.EpisodeCount
+            };
+        }
+
+        private static List<SeriesTranslation> MapTranslations(List<TranslationResource> translations)
+        {
+            var result = new List<SeriesTranslation>();
+
+            (translations ?? new List<TranslationResource>()).ForEach(t =>
+            {
+                var language = IsoLanguages.Find(t.Language);
+
+                if (language != null && t.Title.IsNotNullOrWhiteSpace())
+                {
+                    result.Add(new SeriesTranslation
+                    {
+                        Language = language.Language,
+                        Title = t.Title,
+                        CleanTitle = t.Title.CleanSeriesTitle(),
+                        Overview = t.Overview
+                    });
+                }
+            });
+
+            return result;
         }
     }
 }

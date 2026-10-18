@@ -40,7 +40,6 @@ using NzbDrone.Core.RootFolders;
 using NzbDrone.Core.Tags;
 using NzbDrone.Core.ThingiProvider;
 using NzbDrone.Core.Tv;
-using NzbDrone.Core.Tv.Translations;
 using NzbDrone.Core.Update.History;
 using static Dapper.SqlMapper;
 
@@ -63,6 +62,7 @@ namespace NzbDrone.Core.Datastore
 
             Mapper.Entity<RootFolder>("RootFolders").RegisterModel()
                   .Ignore(r => r.Accessible)
+                  .Ignore(r => r.IsEmpty)
                   .Ignore(r => r.FreeSpace)
                   .Ignore(r => r.TotalSpace);
 
@@ -137,11 +137,15 @@ namespace NzbDrone.Core.Datastore
 
             Mapper.Entity<QualityDefinition>("QualityDefinitions").RegisterModel()
                   .Ignore(d => d.GroupName)
-                  .Ignore(d => d.Weight);
+                  .Ignore(d => d.Weight)
+                  .Ignore(d => d.MinSize)
+                  .Ignore(d => d.MaxSize)
+                  .Ignore(d => d.PreferredSize);
 
             Mapper.Entity<CustomFormat>("CustomFormats").RegisterModel();
 
             Mapper.Entity<QualityProfile>("QualityProfiles").RegisterModel();
+            Mapper.Entity<QualityProfileQualityRank>("QualityProfileQualityRanks").RegisterModel();
             Mapper.Entity<Log>("Logs").RegisterModel();
             Mapper.Entity<NamingConfig>("NamingConfig").RegisterModel();
             Mapper.Entity<Blocklist>("Blocklist").RegisterModel();

@@ -19,7 +19,6 @@ using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.MediaInfo;
 using NzbDrone.Core.Tags;
 using NzbDrone.Core.Tv;
-using NzbDrone.Core.Tv.Translations;
 
 namespace NzbDrone.Core.Extras.Metadata.Consumers.Xbmc
 {
@@ -384,8 +383,8 @@ namespace NzbDrone.Core.Extras.Metadata.Consumers.Xbmc
                     var video = new XElement("video");
                     video.Add(new XElement("aspect", (float)episodeFile.MediaInfo.Width / (float)episodeFile.MediaInfo.Height));
                     video.Add(new XElement("bitrate", episodeFile.MediaInfo.VideoBitrate));
-                    video.Add(new XElement("codec", MediaInfoFormatter.FormatVideoCodec(episodeFile.MediaInfo, sceneName)));
-                    video.Add(new XElement("framerate", episodeFile.MediaInfo.VideoFps));
+                    video.Add(new XElement("codec", episodeFile.MediaInfo.VideoFormat));
+                    video.Add(new XElement("framerate", episodeFile.MediaInfo.VideoFps.ToString("0.###")));
                     video.Add(new XElement("height", episodeFile.MediaInfo.Height));
                     video.Add(new XElement("scantype", episodeFile.MediaInfo.ScanType));
                     video.Add(new XElement("width", episodeFile.MediaInfo.Width));
@@ -393,22 +392,44 @@ namespace NzbDrone.Core.Extras.Metadata.Consumers.Xbmc
                     video.Add(new XElement("duration", episodeFile.MediaInfo.RunTime.TotalMinutes));
                     video.Add(new XElement("durationinseconds", Math.Round(episodeFile.MediaInfo.RunTime.TotalSeconds)));
 
+                    if (episodeFile.MediaInfo.VideoHdrFormat is HdrFormat.DolbyVision or HdrFormat.DolbyVisionHdr10 or HdrFormat.DolbyVisionHdr10Plus or HdrFormat.DolbyVisionHlg or HdrFormat.DolbyVisionSdr)
+                    {
+                        video.Add(new XElement("hdrtype", "dolbyvision"));
+                    }
+                    else if (episodeFile.MediaInfo.VideoHdrFormat is HdrFormat.Hdr10 or HdrFormat.Hdr10Plus or HdrFormat.Pq10)
+                    {
+                        video.Add(new XElement("hdrtype", "hdr10"));
+                    }
+                    else if (episodeFile.MediaInfo.VideoHdrFormat == HdrFormat.Hlg10)
+                    {
+                        video.Add(new XElement("hdrtype", "hlg"));
+                    }
+                    else if (episodeFile.MediaInfo.VideoHdrFormat == HdrFormat.None)
+                    {
+                        video.Add(new XElement("hdrtype", ""));
+                    }
+
                     streamDetails.Add(video);
 
-                    var audio = new XElement("audio");
-                    var audioChannelCount = episodeFile.MediaInfo.AudioChannels;
-                    audio.Add(new XElement("bitrate", episodeFile.MediaInfo.AudioBitrate));
-                    audio.Add(new XElement("channels", audioChannelCount));
-                    audio.Add(new XElement("codec", MediaInfoFormatter.FormatAudioCodec(episodeFile.MediaInfo, sceneName)));
-                    audio.Add(new XElement("language", episodeFile.MediaInfo.AudioLanguages));
-                    streamDetails.Add(audio);
-
-                    if (episodeFile.MediaInfo.Subtitles != null && episodeFile.MediaInfo.Subtitles.Count > 0)
+                    if (episodeFile.MediaInfo.AudioStreams is { Count: > 0 })
                     {
-                        foreach (var s in episodeFile.MediaInfo.Subtitles)
+                        foreach (var audioStream in episodeFile.MediaInfo.AudioStreams)
+                        {
+                            var audio = new XElement("audio");
+                            audio.Add(new XElement("bitrate", audioStream.Bitrate));
+                            audio.Add(new XElement("channels", audioStream.Channels));
+                            audio.Add(new XElement("codec", XbmcMetadataFormatter.FormatAudioCodec(audioStream)));
+                            audio.Add(new XElement("language", audioStream.Language));
+                            streamDetails.Add(audio);
+                        }
+                    }
+
+                    if (episodeFile.MediaInfo.SubtitleStreams is { Count: > 0 })
+                    {
+                        foreach (var subtitleStream in episodeFile.MediaInfo.SubtitleStreams)
                         {
                             var subtitle = new XElement("subtitle");
-                            subtitle.Add(new XElement("language", s));
+                            subtitle.Add(new XElement("language", subtitleStream.Language));
                             streamDetails.Add(subtitle);
                         }
                     }

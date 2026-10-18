@@ -1,25 +1,46 @@
+import classNames from 'classnames';
+import { Star } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
-import { useDispatch } from 'react-redux';
+import Icon from 'Components/Icon';
 import Label from 'Components/Label';
+import Button from 'Components/Link/Button';
 import IconButton from 'Components/Link/IconButton';
 import Link from 'Components/Link/Link';
 import ConfirmModal from 'Components/Modal/ConfirmModal';
-import TableRowCell from 'Components/Table/Cells/TableRowCell';
-import TableRow from 'Components/Table/TableRow';
-import { icons, kinds } from 'Helpers/Props';
-import { deleteRootFolder } from 'Store/Actions/rootFolderActions';
-import SetRootFolderForAutoImportCallback from 'typings/SetRootFolderForAutoImportCallback';
+import { icons, kinds, sizes } from 'Helpers/Props';
 import formatBytes from 'Utilities/Number/formatBytes';
 import translate from 'Utilities/String/translate';
-import styles from './RootFolderRow.css';
+import { RootFolder, useDeleteRootFolder } from './useRootFolders';
+import styles from './RootFolderRow.module.css';
 
-interface RootFolderRowProps {
-  id: number;
-  path: string;
-  accessible: boolean;
-  freeSpace?: number;
-  unmappedFolders: object[];
-  onSetRootFolderForAutoImportPress?: SetRootFolderForAutoImportCallback;
+interface RootFolderRowProps extends RootFolder {
+  isSelectable: boolean;
+  isDefaultForAutoImport?: boolean;
+  onSetRootFolderForAutoImportPress?: (path: string) => void;
+}
+
+function renderBadge(isUnavailable: boolean, isEmpty: boolean) {
+  if (isUnavailable) {
+    return (
+      <Label kind={kinds.DANGER} dot={false}>
+        {translate('Unavailable')}
+      </Label>
+    );
+  }
+
+  if (isEmpty) {
+    return (
+      <Label
+        kind={kinds.WARNING}
+        dot={false}
+        title={translate('EmptyRootFolderTooltip')}
+      >
+        {translate('Empty')}
+      </Label>
+    );
+  }
+
+  return null;
 }
 
 function RootFolderRow(props: RootFolderRowProps) {
@@ -27,96 +48,143 @@ function RootFolderRow(props: RootFolderRowProps) {
     id,
     path,
     accessible,
-    freeSpace = 0,
-    unmappedFolders = [],
+    isEmpty,
+    freeSpace,
+    isSelectable,
+    isDefaultForAutoImport = false,
     onSetRootFolderForAutoImportPress,
+    unmappedFolders = [],
   } = props;
 
   const isUnavailable = !accessible;
-
-  const dispatch = useDispatch();
+  const importableCount = unmappedFolders.length;
+  const hasFreeSpace = freeSpace != null && !isNaN(freeSpace);
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const { deleteRootFolder } = useDeleteRootFolder(id);
 
-  const onDeletePress = useCallback(() => {
-    setIsDeleteModalOpen(true);
-  }, [setIsDeleteModalOpen]);
-
-  const onDeleteModalClose = useCallback(() => {
-    setIsDeleteModalOpen(false);
-  }, [setIsDeleteModalOpen]);
-
-  const onConfirmDelete = useCallback(() => {
-    dispatch(deleteRootFolder({ id }));
-
-    setIsDeleteModalOpen(false);
-  }, [dispatch, id]);
-
-  const showAutoImportAction =
-    typeof onSetRootFolderForAutoImportPress === 'function';
-
-  const onSetAutoImportPress = useCallback(() => {
-    if (onSetRootFolderForAutoImportPress) {
-      onSetRootFolderForAutoImportPress(path);
-    }
+  const handleSetAutoImportPress = useCallback(() => {
+    onSetRootFolderForAutoImportPress?.(path);
   }, [onSetRootFolderForAutoImportPress, path]);
 
+  const handleDeletePress = useCallback(() => {
+    setIsDeleteModalOpen(true);
+  }, []);
+
+  const handleDeleteModalClose = useCallback(() => {
+    setIsDeleteModalOpen(false);
+  }, []);
+
+  const handleConfirmDelete = useCallback(() => {
+    deleteRootFolder();
+    setIsDeleteModalOpen(false);
+  }, [deleteRootFolder]);
+
   return (
-    <TableRow>
-      {showAutoImportAction ? (
-        <TableRowCell className={styles.autoImport}>
-          <IconButton
-            title={translate('SetRootFolderForAutoImport')}
-            name={icons.FOLDER_PLUS}
-            onPress={onSetAutoImportPress}
-          />
-        </TableRowCell>
+    <div
+      className={classNames(
+        styles.row,
+        isSelectable && styles.selectable,
+        isUnavailable && styles.unavailable
+      )}
+    >
+      {isSelectable && !isUnavailable ? (
+        <Link
+          className={styles.underlay}
+          to={`/add/import/${id}`}
+          aria-label={translate('ImportFromRootFolder', { path })}
+        />
       ) : null}
 
-      <TableRowCell>
-        {isUnavailable ? (
-          <div className={styles.unavailablePath}>
-            {path}
+      <div
+        className={classNames(styles.content, isSelectable && styles.overlay)}
+      >
+        <Icon
+          className={styles.folderIcon}
+          name={icons.ROOT_FOLDER}
+          size={20}
+        />
 
-            <Label className={styles.unavailableLabel} kind={kinds.DANGER}>
-              {translate('Unavailable')}
-            </Label>
+        <div className={styles.info}>
+          <span className={styles.path}>{path}</span>
+
+          <div className={styles.meta}>
+            {isUnavailable ? (
+              <span>{translate('RootFolderNotAccessible')}</span>
+            ) : (
+              <>
+                <span className={styles.importable}>
+                  {importableCount > 0
+                    ? translate('RootFolderFoldersToImport', {
+                        count: importableCount,
+                      })
+                    : translate('RootFolderNothingToImport')}
+                </span>
+
+                {hasFreeSpace ? (
+                  <>
+                    <span className={styles.metaSep}>·</span>
+
+                    <span className={styles.free}>
+                      {translate('RootFolderSelectFreeSpace', {
+                        freeSpace: formatBytes(freeSpace),
+                      })}
+                    </span>
+                  </>
+                ) : null}
+              </>
+            )}
           </div>
-        ) : (
-          <Link className={styles.link} to={`/add/import/${id}`}>
-            {path}
-          </Link>
+        </div>
+
+        {renderBadge(isUnavailable, isEmpty)}
+
+        {onSetRootFolderForAutoImportPress ? (
+          <IconButton
+            title={translate(
+              isDefaultForAutoImport
+                ? 'DefaultRootFolderForAutoImport'
+                : 'SetRootFolderForAutoImport'
+            )}
+            aria-label={translate('SetRootFolderForAutoImport')}
+            aria-pressed={isDefaultForAutoImport}
+            name={Star}
+            filled={isDefaultForAutoImport}
+            iconClassName={
+              isDefaultForAutoImport ? styles.defaultAutoImport : undefined
+            }
+            onPress={handleSetAutoImportPress}
+          />
+        ) : null}
+
+        {isSelectable || isUnavailable ? null : (
+          <Button
+            size={sizes.SMALL}
+            to={`/add/import/${id}`}
+            aria-label={translate('ImportFromRootFolder', { path })}
+          >
+            {translate('Import')}
+          </Button>
         )}
-      </TableRowCell>
 
-      <TableRowCell className={styles.freeSpace}>
-        {isUnavailable || isNaN(Number(freeSpace))
-          ? '-'
-          : formatBytes(freeSpace)}
-      </TableRowCell>
-
-      <TableRowCell className={styles.unmappedFolders}>
-        {isUnavailable ? '-' : unmappedFolders.length}
-      </TableRowCell>
-
-      <TableRowCell className={styles.actions}>
         <IconButton
           title={translate('RemoveRootFolder')}
+          aria-label={translate('RemoveRootFolder')}
           name={icons.REMOVE}
-          onPress={onDeletePress}
+          onPress={handleDeletePress}
         />
-      </TableRowCell>
+      </div>
 
       <ConfirmModal
         isOpen={isDeleteModalOpen}
         kind={kinds.DANGER}
-        title={translate('DeleteRootFolder')}
-        message={translate('DeleteRootFolderMessageText', { path })}
-        confirmLabel={translate('Delete')}
-        onConfirm={onConfirmDelete}
-        onCancel={onDeleteModalClose}
+        title={translate('RemoveRootFolder')}
+        message={translate('RemoveRootFolderWithSeriesMessageText', { path })}
+        confirmLabel={translate('Remove')}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleDeleteModalClose}
       />
-    </TableRow>
+    </div>
   );
 }
 

@@ -125,9 +125,9 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
         {
             var languages = new AudioLanguageSet();
 
-            foreach (var audioLanguage in mediaInfo?.AudioLanguages ?? new List<string>())
+            foreach (var audioStream in mediaInfo?.AudioStreams ?? new List<MediaInfoAudioStreamModel>())
             {
-                AddRawLanguage(languages, audioLanguage);
+                AddRawLanguage(languages, audioStream.Language);
             }
 
             foreach (var language in parsedLanguages ?? new List<Language>())

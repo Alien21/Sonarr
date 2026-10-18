@@ -9,12 +9,12 @@ import {
 } from 'typings/Queue';
 import translate from 'Utilities/String/translate';
 import QueueStatus from './QueueStatus';
-import styles from './QueueDetails.css';
+import styles from './QueueDetails.module.css';
 
 interface QueueDetailsProps {
   title: string;
   size: number;
-  sizeleft: number;
+  sizeLeft: number;
   estimatedCompletionTime?: string;
   status: string;
   trackedDownloadState?: QueueTrackedDownloadState;
@@ -28,7 +28,7 @@ function QueueDetails(props: QueueDetailsProps) {
   const {
     title,
     size,
-    sizeleft,
+    sizeLeft,
     status,
     trackedDownloadState = 'downloading',
     trackedDownloadStatus = 'ok',
@@ -37,7 +37,7 @@ function QueueDetails(props: QueueDetailsProps) {
     progressBar,
   } = props;
 
-  const progress = 100 - (sizeleft / size) * 100;
+  const progress = 100 - (sizeLeft / size) * 100;
   const isDownloading = status === 'downloading';
   const isPaused = status === 'paused';
   const hasWarning = trackedDownloadStatus === 'warning';
@@ -59,9 +59,10 @@ function QueueDetails(props: QueueDetailsProps) {
       <Popover
         className={styles.progressBarContainer}
         anchor={progressBar!}
+        accessibleLabel={`${state} - ${progress.toFixed(1)}% ${title}`}
         title={`${state} - ${progress.toFixed(1)}%`}
         body={<div>{title}</div>}
-        position={tooltipPositions.LEFT}
+        position="bottom-start"
       />
     );
   }

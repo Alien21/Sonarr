@@ -7,6 +7,7 @@ public enum ImportRejectionReason
     UnknownSeries,
     DangerousFile,
     ExecutableFile,
+    UserRejectedExtension,
     ArchiveFile,
     SeriesFolder,
     InvalidFilePath,
@@ -36,5 +37,7 @@ public enum ImportRejectionReason
     NotQualityUpgrade,
     NotRevisionUpgrade,
     NotCustomFormatUpgrade,
-    DualAudioUpgradeManualReview
+    DualAudioUpgradeManualReview,
+    NotCustomFormatUpgradeAfterRename,
+    MultiSeason
 }

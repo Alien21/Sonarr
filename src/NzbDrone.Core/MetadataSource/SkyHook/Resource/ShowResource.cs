@@ -11,6 +11,8 @@ namespace NzbDrone.Core.MetadataSource.SkyHook.Resource
             Images = new List<ImageResource>();
             Seasons = new List<SeasonResource>();
             Episodes = new List<EpisodeResource>();
+            Translations = new List<TranslationResource>();
+            SeasonTypes = new List<SeasonTypeResource>();
         }
 
         public int TvdbId { get; set; }
@@ -33,6 +35,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook.Resource
         public string Network { get; set; }
         public string ImdbId { get; set; }
         public string OriginalLanguage { get; set; }
+        public string OriginalCountry { get; set; }
 
         public List<ActorResource> Actors { get; set; }
         public List<string> Genres { get; set; }
@@ -44,5 +47,7 @@ namespace NzbDrone.Core.MetadataSource.SkyHook.Resource
         public List<ImageResource> Images { get; set; }
         public List<SeasonResource> Seasons { get; set; }
         public List<EpisodeResource> Episodes { get; set; }
+        public List<TranslationResource> Translations { get; set; }
+        public List<SeasonTypeResource> SeasonTypes { get; set; }
     }
 }

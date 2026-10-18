@@ -2,7 +2,7 @@ import React, { ComponentPropsWithoutRef, useCallback, useRef } from 'react';
 import { Scrollbars } from 'react-custom-scrollbars-2';
 import { ScrollDirection } from 'Helpers/Props/scrollDirections';
 import { OnScroll } from './Scroller';
-import styles from './OverlayScroller.css';
+import styles from './OverlayScroller.module.css';
 
 const SCROLLBAR_SIZE = 10;
 
@@ -11,8 +11,8 @@ interface OverlayScrollerProps {
   trackClassName?: string;
   scrollTop?: number;
   scrollDirection: ScrollDirection;
-  autoHide: boolean;
-  autoScroll: boolean;
+  autoHide?: boolean;
+  autoScroll?: boolean;
   children?: React.ReactNode;
   onScroll?: (payload: OnScroll) => void;
 }

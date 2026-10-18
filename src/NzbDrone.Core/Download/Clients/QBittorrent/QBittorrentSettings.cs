@@ -27,7 +27,7 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
 
     public class QBittorrentSettings : DownloadClientSettingsBase<QBittorrentSettings>
     {
-        private static readonly QBittorrentSettingsValidator Validator = new ();
+        private static readonly QBittorrentSettingsValidator Validator = new();
 
         public QBittorrentSettings()
         {
@@ -82,6 +82,9 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
 
         [FieldDefinition(14, Label = "DownloadClientQbittorrentSettingsContentLayout", Type = FieldType.Select, SelectOptions = typeof(QBittorrentContentLayout), HelpText = "DownloadClientQbittorrentSettingsContentLayoutHelpText")]
         public int ContentLayout { get; set; }
+
+        [FieldDefinition(15, Label = "DownloadClientQbittorrentSettingsAddSeriesTags", Type = FieldType.Checkbox, HelpText = "DownloadClientQbittorrentSettingsAddSeriesTagsHelpText")]
+        public bool AddSeriesTags { get; set; }
 
         public override NzbDroneValidationResult Validate()
         {

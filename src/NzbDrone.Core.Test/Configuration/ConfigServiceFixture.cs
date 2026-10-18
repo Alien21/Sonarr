@@ -5,6 +5,7 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Languages;
 using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.Configuration
@@ -50,6 +51,73 @@ namespace NzbDrone.Core.Test.Configuration
             Mocker.GetMock<IConfigRepository>().Verify(c => c.Insert(It.IsAny<Config>()), Times.Never());
         }
 
+        [Test]
+        public void PreferredMetadataLanguage_should_default_to_english()
+        {
+            Subject.PreferredMetadataLanguage.Should().Be((int)Language.English);
+        }
+
+        [Test]
+        public void PreferredMetadataLanguage_should_store_value()
+        {
+            var value = (int)Language.French;
+
+            Subject.PreferredMetadataLanguage = value;
+
+            AssertUpsert("PreferredMetadataLanguage", value);
+        }
+
+        [Test]
+        public void should_read_legacy_series_info_language_when_preferred_language_is_missing()
+        {
+            Mocker.GetMock<IConfigRepository>().Setup(c => c.All()).Returns(new List<Config>
+            {
+                new Config { Key = "seriesinfolanguage", Value = Language.Czech.Id.ToString() }
+            });
+
+            Subject.PreferredMetadataLanguage.Should().Be(Language.Czech.Id);
+            Subject.SeriesInfoLanguage.Should().Be(Language.Czech.Id);
+        }
+
+        [TestCase("SeriesInfoLanguage")]
+        [TestCase("seriesinfolanguage")]
+        public void should_save_legacy_language_settings_to_the_preferred_language_key(string key)
+        {
+            Mocker.GetMock<IConfigRepository>().Setup(c => c.All()).Returns(new List<Config>
+            {
+                new Config { Key = "seriesinfolanguage", Value = Language.Czech.Id.ToString() },
+                new Config { Key = "preferredmetadatalanguage", Value = Language.German.Id.ToString() }
+            });
+
+            Subject.SeriesInfoLanguage.Should().Be(Language.German.Id);
+            Subject.SaveConfigDictionary(new Dictionary<string, object> { [key] = Language.French.Id });
+
+            AssertUpsert("PreferredMetadataLanguage", Language.French.Id);
+            Mocker.GetMock<IConfigRepository>().Verify(c => c.Upsert("seriesinfolanguage", It.IsAny<string>()), Times.Never());
+        }
+
+        [Test]
+        public void should_prefer_the_canonical_language_when_both_setting_names_are_saved()
+        {
+            Subject.SaveConfigDictionary(new Dictionary<string, object>
+            {
+                [nameof(ConfigService.SeriesInfoLanguage)] = Language.Czech.Id,
+                [nameof(ConfigService.PreferredMetadataLanguage)] = Language.French.Id
+            });
+
+            AssertUpsert("PreferredMetadataLanguage", Language.French.Id);
+            Mocker.GetMock<IConfigRepository>().Verify(c => c.Upsert("preferredmetadatalanguage", It.IsAny<string>()), Times.Once());
+            Mocker.GetMock<IConfigRepository>().Verify(c => c.Upsert("seriesinfolanguage", It.IsAny<string>()), Times.Never());
+        }
+
+        [Test]
+        public void should_store_the_legacy_language_property_using_the_canonical_key()
+        {
+            Subject.SeriesInfoLanguage = Language.Czech.Id;
+
+            AssertUpsert("PreferredMetadataLanguage", Language.Czech.Id);
+        }
+
         private void AssertUpsert(string key, object value)
         {
             Mocker.GetMock<IConfigRepository>().Verify(c => c.Upsert(key.ToLowerInvariant(), value.ToString()));
@@ -60,7 +128,9 @@ namespace NzbDrone.Core.Test.Configuration
         public void config_properties_should_write_and_read_using_same_key()
         {
             var configProvider = Subject;
-            var allProperties = typeof(ConfigService).GetProperties().Where(p => p.GetSetMethod() != null).ToList();
+            // The legacy language property intentionally aliases PreferredMetadataLanguage.
+            var allProperties = typeof(ConfigService).GetProperties()
+                .Where(p => p.GetSetMethod() != null && p.Name != nameof(ConfigService.SeriesInfoLanguage)).ToList();
 
             var keys = new List<string>();
             var values = new List<Config>();
@@ -84,6 +154,10 @@ namespace NzbDrone.Core.Test.Configuration
                 else if (propertyInfo.PropertyType == typeof(int))
                 {
                     value = DateTime.Now.Millisecond;
+                }
+                else if (propertyInfo.PropertyType == typeof(double))
+                {
+                    value = (double)DateTime.Now.Millisecond;
                 }
                 else if (propertyInfo.PropertyType == typeof(bool))
                 {

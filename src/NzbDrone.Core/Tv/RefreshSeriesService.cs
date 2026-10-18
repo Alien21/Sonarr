@@ -5,7 +5,6 @@ using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
-using NzbDrone.Core.AutoTagging;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaFiles;
@@ -15,7 +14,6 @@ using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Tv.Commands;
 using NzbDrone.Core.Tv.Events;
-using NzbDrone.Core.Tv.Translations;
 
 namespace NzbDrone.Core.Tv
 {
@@ -23,35 +21,35 @@ namespace NzbDrone.Core.Tv
     {
         private readonly IProvideSeriesInfo _seriesInfo;
         private readonly ISeriesService _seriesService;
+        private readonly ISeriesTranslationService _seriesTranslationService;
         private readonly IRefreshEpisodeService _refreshEpisodeService;
         private readonly IEventAggregator _eventAggregator;
         private readonly IDiskScanService _diskScanService;
         private readonly ICheckIfSeriesShouldBeRefreshed _checkIfSeriesShouldBeRefreshed;
         private readonly IConfigService _configService;
-        private readonly IAutoTaggingService _autoTaggingService;
-        private readonly ISeriesTranslationService _seriesTranslationService;
+        private readonly ICommandResultReporter _commandResultReporter;
         private readonly Logger _logger;
 
         public RefreshSeriesService(IProvideSeriesInfo seriesInfo,
                                     ISeriesService seriesService,
+                                    ISeriesTranslationService seriesTranslationService,
                                     IRefreshEpisodeService refreshEpisodeService,
                                     IEventAggregator eventAggregator,
                                     IDiskScanService diskScanService,
                                     ICheckIfSeriesShouldBeRefreshed checkIfSeriesShouldBeRefreshed,
                                     IConfigService configService,
-                                    IAutoTaggingService autoTaggingService,
-                                    ISeriesTranslationService seriesTranslationService,
+                                    ICommandResultReporter commandResultReporter,
                                     Logger logger)
         {
             _seriesInfo = seriesInfo;
             _seriesService = seriesService;
+            _seriesTranslationService = seriesTranslationService;
             _refreshEpisodeService = refreshEpisodeService;
             _eventAggregator = eventAggregator;
             _diskScanService = diskScanService;
             _checkIfSeriesShouldBeRefreshed = checkIfSeriesShouldBeRefreshed;
             _configService = configService;
-            _autoTaggingService = autoTaggingService;
-            _seriesTranslationService = seriesTranslationService;
+            _commandResultReporter = commandResultReporter;
             _logger = logger;
         }
 
@@ -68,7 +66,7 @@ namespace NzbDrone.Core.Tv
 
             try
             {
-                var tuple = _seriesInfo.GetSeriesInfo(series.TvdbId);
+                var tuple = _seriesInfo.GetSeriesInfo(series.TvdbId, series.Language, series.SeasonType);
                 seriesInfo = tuple.Item1;
                 episodes = tuple.Item2;
             }
@@ -116,6 +114,10 @@ namespace NzbDrone.Core.Tv
             series.Actors = seriesInfo.Actors;
             series.Genres = seriesInfo.Genres;
             series.Certification = seriesInfo.Certification;
+            series.OriginalCountry = seriesInfo.OriginalCountry;
+            series.OriginalTitle = seriesInfo.OriginalTitle;
+            series.CleanOriginalTitle = seriesInfo.CleanOriginalTitle;
+            series.SeasonTypes = seriesInfo.SeasonTypes;
 
             try
             {
@@ -130,12 +132,7 @@ namespace NzbDrone.Core.Tv
             series.Seasons = UpdateSeasons(series, seriesInfo);
 
             _seriesService.UpdateSeries(series, publishUpdatedEvent: false);
-
-            if (_configService.UseSeriesInfoLanguage)
-            {
-                _seriesTranslationService.UpdateTranslations(seriesInfo.Translations, series);
-            }
-
+            _seriesTranslationService.UpdateTranslations(series.Id, seriesInfo.Translations);
             _refreshEpisodeService.RefreshEpisodeInfo(series, episodes);
 
             _logger.Debug("Finished series refresh for {0}", series.Title);
@@ -210,7 +207,7 @@ namespace NzbDrone.Core.Tv
 
         private void UpdateTags(Series series)
         {
-            var tagsUpdated = _seriesService.UpdateTags(series);
+            var tagsUpdated = _seriesService.UpdateAutoTaggingTags(series);
 
             if (tagsUpdated)
             {
@@ -239,13 +236,20 @@ namespace NzbDrone.Core.Tv
                     catch (SeriesNotFoundException)
                     {
                         _logger.Error("Series '{0}' (tvdbid {1}) was not found, it may have been removed from TheTVDB.", series.Title, series.TvdbId);
+
+                        // Mark the result as indeterminate so it's not marked as a full success,
+                        // but we can still process other series if needed.
+                        _commandResultReporter.Report(CommandResult.Indeterminate);
                     }
                     catch (Exception e)
                     {
                         _logger.Error(e, "Couldn't refresh info for {0}", series);
                         UpdateTags(series);
                         RescanSeries(series, isNew, trigger);
-                        throw;
+
+                        // Mark the result as indeterminate so it's not marked as a full success,
+                        // but we can still process other series if needed.
+                        _commandResultReporter.Report(CommandResult.Indeterminate);
                     }
                 }
             }

@@ -32,6 +32,7 @@ namespace Sonarr.Api.V3.Indexers
         public bool FullSeason { get; set; }
         public bool SceneSource { get; set; }
         public int SeasonNumber { get; set; }
+        public List<int> SeasonNumbers { get; set; }
         public List<Language> Languages { get; set; }
         public int LanguageWeight { get; set; }
         public string AirDate { get; set; }
@@ -104,7 +105,6 @@ namespace Sonarr.Api.V3.Indexers
             var torrentInfo = (model.RemoteEpisode.Release as TorrentInfo) ?? new TorrentInfo();
             var indexerFlags = torrentInfo.IndexerFlags;
 
-            // TODO: Clean this mess up. don't mix data from multiple classes, use sub-resources instead? (Got a huge Deja Vu, didn't we talk about this already once?)
             return new ReleaseResource
             {
                 Guid = releaseInfo.Guid,
@@ -121,7 +121,8 @@ namespace Sonarr.Api.V3.Indexers
                 ReleaseHash = parsedEpisodeInfo.ReleaseHash,
                 Title = releaseInfo.Title,
                 FullSeason = parsedEpisodeInfo.FullSeason,
-                SeasonNumber = parsedEpisodeInfo.SeasonNumber,
+                SeasonNumber = parsedEpisodeInfo.SeasonNumber ?? -1,
+                SeasonNumbers = parsedEpisodeInfo.SeasonNumbers,
                 Languages = remoteEpisode.Languages,
                 AirDate = parsedEpisodeInfo.AirDate,
                 SeriesTitle = parsedEpisodeInfo.SeriesTitle,

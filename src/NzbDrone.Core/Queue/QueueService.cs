@@ -4,6 +4,7 @@ using System.Linq;
 using NzbDrone.Common.Crypto;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.Languages;
+using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Tv;
@@ -20,7 +21,7 @@ namespace NzbDrone.Core.Queue
     public class QueueService : IQueueService, IHandle<TrackedDownloadRefreshedEvent>
     {
         private readonly IEventAggregator _eventAggregator;
-        private static List<Queue> _queue = new ();
+        private static List<Queue> _queue = new();
 
         public QueueService(IEventAggregator eventAggregator)
         {
@@ -46,19 +47,17 @@ namespace NzbDrone.Core.Queue
         {
             if (trackedDownload.RemoteEpisode?.Episodes != null && trackedDownload.RemoteEpisode.Episodes.Any())
             {
-                foreach (var episode in trackedDownload.RemoteEpisode.Episodes)
-                {
-                    yield return MapQueueItem(trackedDownload, episode);
-                }
+                yield return MapQueueItem(trackedDownload, trackedDownload.RemoteEpisode.Episodes);
             }
             else
             {
-                yield return MapQueueItem(trackedDownload, null);
+                yield return MapQueueItem(trackedDownload, []);
             }
         }
 
-        private Queue MapQueueItem(TrackedDownload trackedDownload, Episode episode)
+        private Queue MapQueueItem(TrackedDownload trackedDownload, List<Episode> episodes)
         {
+            var episode = episodes.Count == 1 ? episodes[0] : null;
             var languages = GetQueueLanguages(trackedDownload, episode);
             var subtitleLanguages = GetQueueSubtitleLanguages(trackedDownload, episode);
             var quality = GetQueueQuality(trackedDownload, episode);
@@ -67,11 +66,12 @@ namespace NzbDrone.Core.Queue
             var queue = new Queue
             {
                 Series = trackedDownload.RemoteEpisode?.Series,
-                Episode = episode,
+                SeasonNumber = trackedDownload.RemoteEpisode?.MappedSeasonNumber,
+                Episodes = episodes,
                 Languages = languages,
                 SubtitleLanguages = subtitleLanguages,
                 Quality = quality,
-                Title = Parser.Parser.RemoveFileExtension(trackedDownload.DownloadItem.Title),
+                Title = FileExtensions.RemoveFileExtension(trackedDownload.DownloadItem.Title),
                 Size = size,
                 SizeLeft = trackedDownload.DownloadItem.RemainingSize,
                 TimeLeft = trackedDownload.DownloadItem.RemainingTime,
@@ -90,7 +90,7 @@ namespace NzbDrone.Core.Queue
                 DownloadClientHasPostImportCategory = trackedDownload.DownloadItem.DownloadClientInfo.HasPostImportCategory
             };
 
-            queue.Id = HashConverter.GetHashInt31($"trackedDownload-{trackedDownload.DownloadClient}-{trackedDownload.DownloadItem.DownloadId}-ep{episode?.Id ?? 0}");
+            queue.Id = HashConverter.GetHashInt31($"trackedDownload-{trackedDownload.DownloadClient}-{trackedDownload.DownloadItem.DownloadId}");
 
             if (queue.TimeLeft.HasValue)
             {
@@ -174,6 +174,18 @@ namespace NzbDrone.Core.Queue
                 return analyzedEpisode.Size;
             }
 
+            if (episode == null && trackedDownload.AnalyzedEpisodeFiles != null)
+            {
+                var analyzedFiles = trackedDownload.AnalyzedEpisodeFiles.Values
+                    .Where(file => file.Size > 0 && !string.IsNullOrWhiteSpace(file.Path))
+                    .GroupBy(file => file.Path, StringComparer.Ordinal)
+                    .Select(files => files.First())
+                    .ToList();
+                if (analyzedFiles.Any())
+                {
+                    return analyzedFiles.Sum(file => (decimal)file.Size);
+                }
+            }
             return trackedDownload.DownloadItem.TotalSize;
         }
 

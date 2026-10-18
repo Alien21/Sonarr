@@ -31,6 +31,7 @@ namespace NzbDrone.Core.Configuration
         bool CreateEmptySeriesFolders { get; set; }
         bool DeleteEmptyFolders { get; set; }
         FileDateType FileDate { get; set; }
+        bool SkipFreeSpaceCheckWhenGrabbing { get; set; }
         bool SkipFreeSpaceCheckWhenImporting { get; set; }
         int MinimumFreeSpaceWhenImporting { get; set; }
         bool CopyUsingHardlinks { get; set; }
@@ -43,6 +44,11 @@ namespace NzbDrone.Core.Configuration
         int DefaultProfileForAutoImport { get; set; }
         RescanAfterRefreshType RescanAfterRefresh { get; set; }
         EpisodeTitleRequiredType EpisodeTitleRequired { get; set; }
+        string UserRejectedExtensions { get; set; }
+
+        // Season Pack Upgrade (Media Management)
+        SeasonPackUpgradeType SeasonPackUpgrade { get; set; }
+        double SeasonPackUpgradeThreshold { get; set; }
 
         // Permissions (Media Management)
         bool SetPermissionsLinux { get; set; }
@@ -65,10 +71,13 @@ namespace NzbDrone.Core.Configuration
         string ShortDateFormat { get; set; }
         string LongDateFormat { get; set; }
         string TimeFormat { get; set; }
+        string TimeZone { get; set; }
         bool ShowRelativeDates { get; set; }
         bool EnableColorImpairedMode { get; set; }
+        string HeaderColor { get; set; }
         int UILanguage { get; set; }
         int SeriesInfoLanguage { get; set; }
+        int PreferredMetadataLanguage { get; set; }
 
         // Internal
         bool CleanupMetadataImages { get; set; }

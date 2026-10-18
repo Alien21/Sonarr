@@ -1,23 +1,27 @@
-import React, { useCallback } from 'react';
-import { useDispatch } from 'react-redux';
-import { Tag } from 'App/State/TagsAppState';
-import Card from 'Components/Card';
+import React, { useMemo } from 'react';
 import Label from 'Components/Label';
 import MiddleTruncate from 'Components/MiddleTruncate';
 import ConfirmModal from 'Components/Modal/ConfirmModal';
+import SettingsCard from 'Components/SettingsCard/SettingsCard';
+import settingsCardStyles from 'Components/SettingsCard/SettingsCard.module.css';
+import SettingsCardAction from 'Components/SettingsCard/SettingsCardAction';
+import SettingsCardStatus from 'Components/SettingsCard/SettingsCardStatus';
 import TagList from 'Components/TagList';
 import useModalOpenState from 'Helpers/Hooks/useModalOpenState';
-import { kinds } from 'Helpers/Props';
-import { deleteReleaseProfile } from 'Store/Actions/Settings/releaseProfiles';
-import Indexer from 'typings/Indexer';
-import ReleaseProfile from 'typings/Settings/ReleaseProfile';
+import { icons, kinds } from 'Helpers/Props';
+import { IndexerModel } from 'Settings/Indexers/useIndexers';
+import { Tag } from 'Tags/useTags';
 import translate from 'Utilities/String/translate';
 import EditReleaseProfileModal from './EditReleaseProfileModal';
-import styles from './ReleaseProfileItem.css';
+import {
+  ReleaseProfileModel,
+  useDeleteReleaseProfile,
+} from './useReleaseProfiles';
+import styles from './ReleaseProfileItem.module.css';
 
-interface ReleaseProfileProps extends ReleaseProfile {
-  tagList: Tag[];
-  indexerList: Indexer[];
+interface ReleaseProfileProps extends ReleaseProfileModel {
+  tagList: ReadonlyArray<Tag>;
+  indexerList: ReadonlyArray<IndexerModel>;
 }
 
 function ReleaseProfileItem(props: ReleaseProfileProps) {
@@ -27,104 +31,114 @@ function ReleaseProfileItem(props: ReleaseProfileProps) {
     enabled = true,
     required = [],
     ignored = [],
+    indexerIds = [],
     tags,
-    indexerId = 0,
+    excludedTags,
     tagList,
     indexerList,
   } = props;
 
-  const dispatch = useDispatch();
+  const { deleteReleaseProfile, isDeleting } = useDeleteReleaseProfile(id);
 
-  const [
-    isEditReleaseProfileModalOpen,
-    setEditReleaseProfileModalOpen,
-    setEditReleaseProfileModalClosed,
-  ] = useModalOpenState(false);
+  const [isEditModalOpen, setEditModalOpen, setEditModalClosed] =
+    useModalOpenState(false);
 
-  const [
-    isDeleteReleaseProfileModalOpen,
-    setDeleteReleaseProfileModalOpen,
-    setDeleteReleaseProfileModalClosed,
-  ] = useModalOpenState(false);
+  const [isDeleteModalOpen, setDeleteModalOpen, setDeleteModalClosed] =
+    useModalOpenState(false);
 
-  const handleDeletePress = useCallback(() => {
-    dispatch(deleteReleaseProfile({ id }));
-  }, [id, dispatch]);
+  const indexers = useMemo(
+    () => indexerList.filter((i) => indexerIds.includes(i.id)),
+    [indexerList, indexerIds]
+  );
 
-  const indexer =
-    indexerId !== 0 && indexerList.find((i) => i.id === indexerId);
+  const statusSegments = [translate(enabled ? 'Enabled' : 'Disabled')];
 
   return (
-    <Card
-      className={styles.releaseProfile}
-      overlayContent={true}
-      onPress={setEditReleaseProfileModalOpen}
+    <SettingsCard
+      name={name || translate('Unnamed')}
+      isUnnamed={!name}
+      aria-label={translate('EditReleaseProfileName', { name: name ?? id })}
+      actions={
+        <SettingsCardAction
+          title={translate('DeleteReleaseProfile')}
+          aria-label={translate('DeleteReleaseProfile')}
+          name={icons.DELETE}
+          onPress={setDeleteModalOpen}
+        />
+      }
+      onPress={setEditModalOpen}
     >
-      {name ? <div className={styles.name}>{name}</div> : null}
+      <SettingsCardStatus
+        dot={enabled ? 'active' : 'muted'}
+        segments={statusSegments}
+      />
 
-      <div>
+      <div className={styles.chips}>
         {required.map((item) => {
-          if (!item) {
-            return null;
-          }
+          if (!item) return null;
 
           return (
-            <Label key={item} className={styles.label} kind={kinds.SUCCESS}>
+            <Label
+              key={item}
+              className={settingsCardStyles.truncatedLabel}
+              kind={kinds.SUCCESS}
+            >
               <MiddleTruncate text={item} />
             </Label>
           );
         })}
-      </div>
 
-      <div>
         {ignored.map((item) => {
-          if (!item) {
-            return null;
-          }
+          if (!item) return null;
 
           return (
-            <Label key={item} className={styles.label} kind={kinds.DANGER}>
+            <Label
+              key={item}
+              className={settingsCardStyles.truncatedLabel}
+              kind={kinds.DANGER}
+            >
               <MiddleTruncate text={item} />
             </Label>
           );
         })}
       </div>
 
-      <TagList tags={tags} tagList={tagList} />
+      {tags.length ? <TagList tags={tags} tagList={tagList} /> : null}
 
-      <div>
-        {enabled ? null : (
-          <Label kind={kinds.DISABLED} outline={true}>
-            {translate('Disabled')}
-          </Label>
-        )}
+      {excludedTags.length ? (
+        <TagList tags={excludedTags} tagList={tagList} kind={kinds.DANGER} />
+      ) : null}
 
-        {indexer ? (
-          <Label kind={kinds.INFO} outline={true}>
-            {indexer.name}
-          </Label>
-        ) : null}
-      </div>
+      {indexers.length ? (
+        <div className={settingsCardStyles.labels}>
+          {indexers.map((indexer) => (
+            <Label key={indexer.id} kind={kinds.INFO} outline={true}>
+              {indexer.name}
+            </Label>
+          ))}
+        </div>
+      ) : null}
 
       <EditReleaseProfileModal
         id={id}
-        isOpen={isEditReleaseProfileModalOpen}
-        onModalClose={setEditReleaseProfileModalClosed}
-        onDeleteReleaseProfilePress={setDeleteReleaseProfileModalOpen}
+        isOpen={isEditModalOpen}
+        onModalClose={setEditModalClosed}
+        onDeleteReleaseProfilePress={setDeleteModalOpen}
       />
 
       <ConfirmModal
-        isOpen={isDeleteReleaseProfileModalOpen}
+        isOpen={isDeleteModalOpen}
         kind={kinds.DANGER}
         title={translate('DeleteReleaseProfile')}
         message={translate('DeleteReleaseProfileMessageText', {
           name: name ?? id,
         })}
         confirmLabel={translate('Delete')}
-        onConfirm={handleDeletePress}
-        onCancel={setDeleteReleaseProfileModalClosed}
+        isSpinning={isDeleting}
+        onConfirm={deleteReleaseProfile}
+        onCancel={setDeleteModalClosed}
       />
-    </Card>
+    </SettingsCard>
   );
 }
 

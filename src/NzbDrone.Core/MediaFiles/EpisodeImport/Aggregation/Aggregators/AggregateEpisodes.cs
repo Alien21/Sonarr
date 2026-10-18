@@ -118,7 +118,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Aggregation.Aggregators
 
         private bool FileEpisodeInfoIsNarrowerEpisodeRange(ParsedEpisodeInfo fileEpisodeInfo, ParsedEpisodeInfo otherEpisodeInfo)
         {
-            if (fileEpisodeInfo.SeasonNumber == otherEpisodeInfo.SeasonNumber &&
+            if (fileEpisodeInfo.SeasonNumbers.SequenceEqual(otherEpisodeInfo.SeasonNumbers) &&
                 fileEpisodeInfo.EpisodeNumbers.Any() &&
                 otherEpisodeInfo.EpisodeNumbers.Length > fileEpisodeInfo.EpisodeNumbers.Length &&
                 fileEpisodeInfo.EpisodeNumbers.All(otherEpisodeInfo.EpisodeNumbers.Contains))

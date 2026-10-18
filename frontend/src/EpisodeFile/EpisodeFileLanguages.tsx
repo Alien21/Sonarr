@@ -1,9 +1,9 @@
 import React from 'react';
 import EpisodeLanguages from 'Episode/EpisodeLanguages';
-import useEpisodeFile from './useEpisodeFile';
+import { useEpisodeFile } from './EpisodeFileProvider';
 
 interface EpisodeFileLanguagesProps {
-  episodeFileId: number;
+  episodeFileId: number | undefined;
 }
 
 function EpisodeFileLanguages({ episodeFileId }: EpisodeFileLanguagesProps) {

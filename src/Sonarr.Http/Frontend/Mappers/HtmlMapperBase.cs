@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Http;
 using NLog;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
@@ -12,7 +13,7 @@ namespace Sonarr.Http.Frontend.Mappers
     {
         private readonly IDiskProvider _diskProvider;
         private readonly Lazy<ICacheBreakerProvider> _cacheBreakProviderFactory;
-        private static readonly Regex ReplaceRegex = new Regex(@"(?:(?<attribute>href|src)=\"")(?<path>.*?(?<extension>css|js|png|ico|ics|svg|json))(?:\"")(?:\s(?<nohash>data-no-hash))?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex ReplaceRegex = new Regex(@"(?:(?<attribute>href|src)=\"")(?<path>.*?\.(?<extension>css|js|ts|png|ico|ics|svg|json))(?:\"")(?:\s(?<nohash>data-no-hash))?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private string _urlBase;
         private string _generatedContent;
@@ -31,9 +32,14 @@ namespace Sonarr.Http.Frontend.Mappers
 
         protected abstract string HtmlPath { get; }
 
-        protected override Stream GetContentStream(string filePath)
+        protected virtual string ReadHtml()
         {
-            var text = GetHtmlText();
+            return _diskProvider.ReadAllText(HtmlPath);
+        }
+
+        protected override Stream GetContentStream(HttpContext context, string filePath)
+        {
+            var text = GetHtmlText(context);
 
             var stream = new MemoryStream();
             var writer = new StreamWriter(stream);
@@ -43,14 +49,14 @@ namespace Sonarr.Http.Frontend.Mappers
             return stream;
         }
 
-        protected virtual string GetHtmlText()
+        protected virtual string GetHtmlText(HttpContext context)
         {
             if (RuntimeInfo.IsProduction && _generatedContent != null)
             {
                 return _generatedContent;
             }
 
-            var text = _diskProvider.ReadAllText(HtmlPath);
+            var text = ReadHtml();
             var cacheBreakProvider = _cacheBreakProviderFactory.Value;
 
             text = ReplaceRegex.Replace(text, match =>

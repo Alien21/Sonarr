@@ -1,22 +1,23 @@
 import classNames from 'classnames';
-import moment from 'moment';
+import moment from 'moment-timezone';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import AppState from 'App/State/AppState';
+import { useAppValue } from 'App/appStore';
+import { useCalendarOption } from 'Calendar/calendarOptionsStore';
 import * as calendarViews from 'Calendar/calendarViews';
 import {
-  gotoCalendarNextRange,
-  gotoCalendarPreviousRange,
-} from 'Store/Actions/calendarActions';
+  goToNextRange,
+  goToPreviousRange,
+  useCalendarDates,
+} from 'Calendar/useCalendar';
+import translate from 'Utilities/String/translate';
 import CalendarDay from './CalendarDay';
-import styles from './CalendarDays.css';
+import CalendarTableHeader from './CalendarTableHeader';
+import styles from './CalendarDays.module.css';
 
 function CalendarDays() {
-  const dispatch = useDispatch();
-  const { dates, view } = useSelector((state: AppState) => state.calendar);
-  const isSidebarVisible = useSelector(
-    (state: AppState) => state.app.isSidebarVisible
-  );
+  const view = useCalendarOption('view');
+  const dates = useCalendarDates();
+  const isSidebarVisible = useAppValue('isSidebarVisible');
 
   const updateTimeout = useRef<ReturnType<typeof setTimeout>>();
   const touchStart = useRef<number | null>(null);
@@ -58,31 +59,28 @@ function CalendarDays() {
     [isSidebarVisible]
   );
 
-  const handleTouchEnd = useCallback(
-    (event: TouchEvent) => {
-      const touches = event.changedTouches;
-      const currentTouch = touches[0].pageX;
+  const handleTouchEnd = useCallback((event: TouchEvent) => {
+    const touches = event.changedTouches;
+    const currentTouch = touches[0].pageX;
 
-      if (!touchStart.current) {
-        return;
-      }
+    if (!touchStart.current) {
+      return;
+    }
 
-      if (
-        currentTouch > touchStart.current &&
-        currentTouch - touchStart.current > 100
-      ) {
-        dispatch(gotoCalendarPreviousRange());
-      } else if (
-        currentTouch < touchStart.current &&
-        touchStart.current - currentTouch > 100
-      ) {
-        dispatch(gotoCalendarNextRange());
-      }
+    if (
+      currentTouch > touchStart.current &&
+      currentTouch - touchStart.current > 100
+    ) {
+      goToPreviousRange();
+    } else if (
+      currentTouch < touchStart.current &&
+      touchStart.current - currentTouch > 100
+    ) {
+      goToNextRange();
+    }
 
-      touchStart.current = null;
-    },
-    [dispatch]
-  );
+    touchStart.current = null;
+  }, []);
 
   const handleTouchCancel = useCallback(() => {
     touchStart.current = null;
@@ -114,21 +112,39 @@ function CalendarDays() {
     };
   }, [handleTouchStart, handleTouchEnd, handleTouchCancel, handleTouchMove]);
 
+  const rowSize = view === calendarViews.MONTH ? 7 : Math.max(dates.length, 1);
+  const rows: string[][] = [];
+
+  for (let index = 0; index < dates.length; index += rowSize) {
+    rows.push(dates.slice(index, index + rowSize));
+  }
+
   return (
-    <div
+    <table
       className={classNames(styles.days, styles[view as keyof typeof styles])}
+      aria-label={translate('Calendar')}
     >
-      {dates.map((date) => {
-        return (
-          <CalendarDay
-            key={date}
-            date={date}
-            isTodaysDate={date === todaysDate}
-            onEventModalOpenToggle={handleEventModalOpenToggle}
-          />
-        );
-      })}
-    </div>
+      <CalendarTableHeader todaysDate={todaysDate} />
+
+      <tbody>
+        {rows.map((row) => {
+          return (
+            <tr key={row[0]}>
+              {row.map((date) => {
+                return (
+                  <CalendarDay
+                    key={date}
+                    date={date}
+                    isTodaysDate={date === todaysDate}
+                    onEventModalOpenToggle={handleEventModalOpenToggle}
+                  />
+                );
+              })}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 

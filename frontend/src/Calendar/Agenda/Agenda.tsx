@@ -1,22 +1,33 @@
 import moment from 'moment';
-import React from 'react';
-import { useSelector } from 'react-redux';
-import AppState from 'App/State/AppState';
+import React, { Fragment } from 'react';
+import useCalendar from 'Calendar/useCalendar';
+import { useUiSettingsValues } from 'Settings/UI/useUiSettings';
 import AgendaEvent from './AgendaEvent';
-import styles from './Agenda.css';
+import styles from './Agenda.module.css';
 
 function Agenda() {
-  const { items } = useSelector((state: AppState) => state.calendar);
+  const { data } = useCalendar();
+  const { longDateFormat } = useUiSettingsValues();
 
   return (
     <div className={styles.agenda}>
-      {items.map((item, index) => {
-        const momentDate = moment(item.airDateUtc);
-        const showDate =
-          index === 0 ||
-          !moment(items[index - 1].airDateUtc).isSame(momentDate, 'day');
+      {data.map((item, index) => {
+        const date = moment(item.airDateUtc);
+        const previousDate =
+          index > 0 ? moment(data[index - 1].airDateUtc) : null;
+        const showHeader = !previousDate || !date.isSame(previousDate, 'day');
 
-        return <AgendaEvent key={item.id} showDate={showDate} {...item} />;
+        return (
+          <Fragment key={item.id}>
+            {showHeader ? (
+              <div className={styles.dayHeader}>
+                {date.format(longDateFormat)}
+              </div>
+            ) : null}
+
+            <AgendaEvent {...item} />
+          </Fragment>
+        );
       })}
     </div>
   );

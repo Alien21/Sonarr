@@ -1,35 +1,47 @@
 import React, { useCallback, useMemo } from 'react';
-import { useSelector } from 'react-redux';
 import Language from 'Language/Language';
-import createFilteredLanguagesSelector from 'Store/Selectors/createFilteredLanguagesSelector';
+import { useFilteredLanguages } from 'Language/useLanguages';
 import translate from 'Utilities/String/translate';
 import EnhancedSelectInput, {
   EnhancedSelectInputValue,
 } from './EnhancedSelectInput';
 
-interface LanguageSelectInputOnChangeProps {
+export interface LanguageSelectInputOnChangeProps {
   name: string;
   value: number | string | Language;
 }
 
-interface LanguageSelectInputProps {
+export interface LanguageSelectInputProps {
+  className?: string;
   name: string;
   value: number | string | Language;
-  includeNoChange: boolean;
+  modalTitle?: string;
+  includeNoChange?: boolean;
   includeNoChangeDisabled?: boolean;
-  includeMixed: boolean;
+  includeMixed?: boolean;
+  includeAny?: boolean;
+  includeOriginal?: boolean;
+  includeUnknown?: boolean;
+  isDisabled?: boolean;
   onChange: (payload: LanguageSelectInputOnChangeProps) => void;
 }
 
 export default function LanguageSelectInput({
   value,
-  includeNoChange,
+  includeNoChange = false,
   includeNoChangeDisabled,
-  includeMixed,
+  includeMixed = false,
+  includeAny = true,
+  includeOriginal = false,
+  includeUnknown = false,
   onChange,
   ...otherProps
 }: LanguageSelectInputProps) {
-  const { items } = useSelector(createFilteredLanguagesSelector(true));
+  const { data: items = [] } = useFilteredLanguages({
+    Any: !includeAny,
+    Original: !includeOriginal,
+    Unknown: !includeUnknown,
+  });
 
   const values = useMemo(() => {
     const result: EnhancedSelectInputValue<number | string>[] = items.map(
@@ -67,19 +79,23 @@ export default function LanguageSelectInput({
     (payload: LanguageSelectInputOnChangeProps) => {
       if (typeof value === 'number') {
         onChange(payload);
-      } else {
-        const language = items.find((i) => i.id === payload.value);
-
-        onChange({
-          ...payload,
-          value: language
-            ? {
-                id: language.id,
-                name: language.name,
-              }
-            : ({ id: payload.value } as Language),
-        });
+        return;
       }
+
+      const language = items.find((i) => i.id === payload.value);
+
+      if (!language) {
+        onChange(payload);
+        return;
+      }
+
+      onChange({
+        ...payload,
+        value: {
+          id: language.id,
+          name: language.name,
+        },
+      });
     },
     [value, items, onChange]
   );

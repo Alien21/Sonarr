@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Net.Http.Headers;
@@ -40,7 +41,7 @@ namespace Sonarr.Http.Frontend.Mappers
             return filePath.StartsWith(parentPath) ? filePath : null;
         }
 
-        public Task<IActionResult> GetResponse(string resourceUrl)
+        public Task<IActionResult> GetResponse(HttpContext context, string resourceUrl)
         {
             var filePath = Map(resourceUrl);
 
@@ -49,14 +50,14 @@ namespace Sonarr.Http.Frontend.Mappers
                 return Task.FromResult<IActionResult>(null);
             }
 
-            if (_diskProvider.FileExists(filePath, _caseSensitive))
+            if (FileExists(filePath))
             {
                 if (!_mimeTypeProvider.TryGetContentType(filePath, out var contentType))
                 {
                     contentType = "application/octet-stream";
                 }
 
-                return Task.FromResult<IActionResult>(new FileStreamResult(GetContentStream(filePath), new MediaTypeHeaderValue(contentType)
+                return Task.FromResult<IActionResult>(new FileStreamResult(GetContentStream(context, filePath), new MediaTypeHeaderValue(contentType)
                 {
                     Encoding = contentType == "text/plain" ? Encoding.UTF8 : null
                 }));
@@ -67,7 +68,12 @@ namespace Sonarr.Http.Frontend.Mappers
             return Task.FromResult<IActionResult>(null);
         }
 
-        protected virtual Stream GetContentStream(string filePath)
+        protected virtual bool FileExists(string filePath)
+        {
+            return _diskProvider.FileExists(filePath, _caseSensitive);
+        }
+
+        protected virtual Stream GetContentStream(HttpContext context, string filePath)
         {
             return File.OpenRead(filePath);
         }

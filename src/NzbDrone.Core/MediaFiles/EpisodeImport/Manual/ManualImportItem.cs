@@ -18,24 +18,17 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
         public int? SeasonNumber { get; set; }
         public List<Episode> Episodes { get; set; }
         public int? EpisodeFileId { get; set; }
-        public List<ManualImportExistingEpisodeFile> ExistingEpisodeFiles { get; set; }
-        public QualityModel Quality { get; set; }
-        public List<Language> Languages { get; set; }
-        public List<Language> SubtitleLanguages { get; set; }
+        public List<ManualImportExistingEpisodeFile> ExistingEpisodeFiles { get; set; } = new();
+        public List<Language> SubtitleLanguages { get; set; } = new();
+        public QualityModel Quality { get; set; } = new();
+        public List<Language> Languages { get; set; } = new();
         public string ReleaseGroup { get; set; }
         public string DownloadId { get; set; }
-        public List<CustomFormat> CustomFormats { get; set; }
+        public List<CustomFormat> CustomFormats { get; set; } = new();
         public int CustomFormatScore { get; set; }
         public int IndexerFlags { get; set; }
         public ReleaseType ReleaseType { get; set; }
-        public IEnumerable<ImportRejection> Rejections { get; set; }
-
-        public ManualImportItem()
-        {
-            CustomFormats = new List<CustomFormat>();
-            SubtitleLanguages = new List<Language>();
-            ExistingEpisodeFiles = new List<ManualImportExistingEpisodeFile>();
-        }
+        public IEnumerable<ImportRejection> Rejections { get; set; } = new List<ImportRejection>();
     }
 
     public class ManualImportExistingEpisodeFile

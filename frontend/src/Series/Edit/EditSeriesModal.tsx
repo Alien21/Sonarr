@@ -1,9 +1,8 @@
-import React, { useCallback } from 'react';
-import { useDispatch } from 'react-redux';
+import React from 'react';
 import Modal from 'Components/Modal/Modal';
-import { clearPendingChanges } from 'Store/Actions/baseActions';
-import { EditSeriesModalContentProps } from './EditSeriesModalContent';
-import EditSeriesModalContentConnector from './EditSeriesModalContentConnector';
+import EditSeriesModalContent, {
+  EditSeriesModalContentProps,
+} from './EditSeriesModalContent';
 
 interface EditSeriesModalProps extends EditSeriesModalContentProps {
   isOpen: boolean;
@@ -14,19 +13,9 @@ function EditSeriesModal({
   onModalClose,
   ...otherProps
 }: EditSeriesModalProps) {
-  const dispatch = useDispatch();
-
-  const handleModalClose = useCallback(() => {
-    dispatch(clearPendingChanges({ section: 'series' }));
-    onModalClose();
-  }, [dispatch, onModalClose]);
-
   return (
-    <Modal isOpen={isOpen} onModalClose={handleModalClose}>
-      <EditSeriesModalContentConnector
-        {...otherProps}
-        onModalClose={handleModalClose}
-      />
+    <Modal isOpen={isOpen} onModalClose={onModalClose}>
+      <EditSeriesModalContent {...otherProps} onModalClose={onModalClose} />
     </Modal>
   );
 }

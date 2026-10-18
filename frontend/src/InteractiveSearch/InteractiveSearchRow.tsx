@@ -1,12 +1,16 @@
-import React, { useCallback, useState } from 'react';
-import { useSelector } from 'react-redux';
+import React, {
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import ProtocolLabel from 'Activity/Queue/ProtocolLabel';
 import Icon from 'Components/Icon';
 import Link from 'Components/Link/Link';
 import SpinnerIconButton from 'Components/Link/SpinnerIconButton';
 import ConfirmModal from 'Components/Modal/ConfirmModal';
-import TableRowCell from 'Components/Table/Cells/TableRowCell';
-import TableRow from 'Components/Table/TableRow';
+import VirtualTableRowCell from 'Components/Table/Cells/VirtualTableRowCell';
 import Popover from 'Components/Tooltip/Popover';
 import Tooltip from 'Components/Tooltip/Tooltip';
 import EpisodeFormats from 'Episode/EpisodeFormats';
@@ -14,17 +18,18 @@ import EpisodeLanguages from 'Episode/EpisodeLanguages';
 import EpisodeQuality from 'Episode/EpisodeQuality';
 import IndexerFlags from 'Episode/IndexerFlags';
 import { icons, kinds, tooltipPositions } from 'Helpers/Props';
-import createUISettingsSelector from 'Store/Selectors/createUISettingsSelector';
-import Release from 'typings/Release';
+import { useUiSettingsValues } from 'Settings/UI/useUiSettings';
 import formatDateTime from 'Utilities/Date/formatDateTime';
 import formatAge from 'Utilities/Number/formatAge';
 import formatBytes from 'Utilities/Number/formatBytes';
 import formatCustomFormatScore from 'Utilities/Number/formatCustomFormatScore';
 import translate from 'Utilities/String/translate';
+import InteractiveSearchPayload from './InteractiveSearchPayload';
 import OverrideMatchModal from './OverrideMatch/OverrideMatchModal';
 import Peers from './Peers';
 import ReleaseSceneIndicator from './ReleaseSceneIndicator';
-import styles from './InteractiveSearchRow.css';
+import { Release, useGrabRelease } from './useReleases';
+import styles from './InteractiveSearchRow.module.css';
 
 function getDownloadIcon(
   isGrabbing: boolean,
@@ -71,15 +76,46 @@ function getDownloadTooltip(
 }
 
 interface InteractiveSearchRowProps extends Release {
-  searchPayload: object;
-  onGrabPress(...args: unknown[]): void;
+  index: number;
+  style: React.CSSProperties;
+  setRowHeight: (index: number, height: number) => void;
+  searchPayload: InteractiveSearchPayload;
 }
 
 function InteractiveSearchRow(props: InteractiveSearchRowProps) {
+  const { index, style, setRowHeight } = props;
+  const {
+    decision,
+    history,
+    parsedInfo,
+    release,
+    languages,
+    customFormatScore,
+    customFormats,
+    sceneMapping,
+    mappedSeriesId,
+    mappedSeasonNumber,
+    mappedEpisodeNumbers,
+    mappedAbsoluteEpisodeNumbers,
+    mappedEpisodeInfo,
+    episodeRequested,
+    downloadAllowed,
+    searchPayload,
+  } = props;
+
+  const { rejections = [] } = decision;
+
+  const {
+    absoluteEpisodeNumbers,
+    episodeNumbers,
+    isDaily,
+    seasonNumber,
+    quality,
+  } = parsedInfo;
+
   const {
     guid,
     indexerId,
-    protocol,
     age,
     ageHours,
     ageMinutes,
@@ -90,41 +126,44 @@ function InteractiveSearchRow(props: InteractiveSearchRowProps) {
     size,
     seeders,
     leechers,
-    quality,
-    languages,
-    customFormatScore,
-    customFormats,
-    sceneMapping,
-    seasonNumber,
-    episodeNumbers,
-    absoluteEpisodeNumbers,
-    mappedSeriesId,
-    mappedSeasonNumber,
-    mappedEpisodeNumbers,
-    mappedAbsoluteEpisodeNumbers,
-    mappedEpisodeInfo,
+    protocol,
     indexerFlags = 0,
-    rejections = [],
-    episodeRequested,
-    downloadAllowed,
-    isDaily,
-    isGrabbing = false,
-    isGrabbed = false,
-    grabError,
-    searchPayload,
-    onGrabPress,
-  } = props;
+  } = release;
 
-  const { longDateFormat, timeFormat } = useSelector(
-    createUISettingsSelector()
-  );
+  const { longDateFormat, timeFormat } = useUiSettingsValues();
 
   const [isConfirmGrabModalOpen, setIsConfirmGrabModalOpen] = useState(false);
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
+  const { isGrabbing, isGrabbed, grabError, grabRelease } = useGrabRelease();
 
-  const onGrabPressWrapper = useCallback(() => {
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const element = rowRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    const measure = () => setRowHeight(index, element.offsetHeight);
+
+    measure();
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [index, setRowHeight]);
+
+  const isBlocklisted = useMemo(() => {
+    return (
+      decision.rejections.findIndex((r) => r.reason === 'blocklisted') >= 0
+    );
+  }, [decision]);
+
+  const handleGrabPress = useCallback(() => {
     if (downloadAllowed) {
-      onGrabPress({
+      grabRelease({
         guid,
         indexerId,
       });
@@ -137,19 +176,19 @@ function InteractiveSearchRow(props: InteractiveSearchRowProps) {
     guid,
     indexerId,
     downloadAllowed,
-    onGrabPress,
+    grabRelease,
     setIsConfirmGrabModalOpen,
   ]);
 
   const onGrabConfirm = useCallback(() => {
     setIsConfirmGrabModalOpen(false);
 
-    onGrabPress({
+    grabRelease({
       guid,
       indexerId,
-      ...searchPayload,
+      searchInfo: searchPayload,
     });
-  }, [guid, indexerId, searchPayload, onGrabPress, setIsConfirmGrabModalOpen]);
+  }, [guid, indexerId, searchPayload, grabRelease, setIsConfirmGrabModalOpen]);
 
   const onGrabCancel = useCallback(() => {
     setIsConfirmGrabModalOpen(false);
@@ -163,22 +202,25 @@ function InteractiveSearchRow(props: InteractiveSearchRowProps) {
     setIsOverrideModalOpen(false);
   }, [setIsOverrideModalOpen]);
 
+  const { height: _height, ...positionStyle } = style;
+
   return (
-    <TableRow>
-      <TableRowCell className={styles.protocol}>
+    <div ref={rowRef} className={styles.row} style={positionStyle}>
+      <VirtualTableRowCell className={styles.protocol}>
         <ProtocolLabel protocol={protocol} />
-      </TableRowCell>
+      </VirtualTableRowCell>
 
-      <TableRowCell
-        className={styles.age}
-        title={formatDateTime(publishDate, longDateFormat, timeFormat, {
-          includeSeconds: true,
-        })}
-      >
-        {formatAge(age, ageHours, ageMinutes)}
-      </TableRowCell>
+      <VirtualTableRowCell className={styles.age}>
+        <span
+          title={formatDateTime(publishDate, longDateFormat, timeFormat, {
+            includeSeconds: true,
+          })}
+        >
+          {formatAge(age, ageHours, ageMinutes)}
+        </span>
+      </VirtualTableRowCell>
 
-      <TableRowCell>
+      <VirtualTableRowCell className={styles.title}>
         <div className={styles.titleContent}>
           <Link to={infoUrl}>{title}</Link>
           <ReleaseSceneIndicator
@@ -194,27 +236,81 @@ function InteractiveSearchRow(props: InteractiveSearchRowProps) {
             isDaily={isDaily}
           />
         </div>
-      </TableRowCell>
+      </VirtualTableRowCell>
 
-      <TableRowCell className={styles.indexer}>{indexer}</TableRowCell>
+      <VirtualTableRowCell className={styles.indexer}>
+        {indexer}
+      </VirtualTableRowCell>
 
-      <TableRowCell className={styles.size}>{formatBytes(size)}</TableRowCell>
+      <VirtualTableRowCell className={styles.history}>
+        {history ? (
+          <Icon
+            name={icons.DOWNLOADING}
+            kind={history.failed ? kinds.DANGER : kinds.DEFAULT}
+            title={`${
+              history.failed
+                ? translate('FailedAt', {
+                    date: formatDateTime(
+                      history.failed,
+                      longDateFormat,
+                      timeFormat,
+                      { includeSeconds: true }
+                    ),
+                  })
+                : translate('GrabbedAt', {
+                    date: formatDateTime(
+                      history.grabbed,
+                      longDateFormat,
+                      timeFormat,
+                      { includeSeconds: true }
+                    ),
+                  })
+            }`}
+          />
+        ) : null}
 
-      <TableRowCell className={styles.peers}>
+        {isBlocklisted ? (
+          <Icon
+            titleWrapperClassName={
+              history ? styles.blocklistIconContainer : undefined
+            }
+            name={icons.BLOCKLIST}
+            kind={kinds.DANGER}
+            title={
+              history?.failed
+                ? `${translate('BlocklistedAt', {
+                    date: formatDateTime(
+                      history.failed,
+                      longDateFormat,
+                      timeFormat,
+                      { includeSeconds: true }
+                    ),
+                  })}`
+                : translate('Blocklisted')
+            }
+          />
+        ) : null}
+      </VirtualTableRowCell>
+
+      <VirtualTableRowCell className={styles.size}>
+        {formatBytes(size)}
+      </VirtualTableRowCell>
+
+      <VirtualTableRowCell className={styles.peers}>
         {protocol === 'torrent' ? (
           <Peers seeders={seeders} leechers={leechers} />
         ) : null}
-      </TableRowCell>
+      </VirtualTableRowCell>
 
-      <TableRowCell className={styles.languages}>
+      <VirtualTableRowCell className={styles.languages}>
         <EpisodeLanguages languages={languages} />
-      </TableRowCell>
+      </VirtualTableRowCell>
 
-      <TableRowCell className={styles.quality}>
+      <VirtualTableRowCell className={styles.quality}>
         <EpisodeQuality quality={quality} showRevision={true} />
-      </TableRowCell>
+      </VirtualTableRowCell>
 
-      <TableRowCell className={styles.customFormatScore}>
+      <VirtualTableRowCell className={styles.customFormatScore}>
         <Tooltip
           anchor={formatCustomFormatScore(
             customFormatScore,
@@ -223,9 +319,9 @@ function InteractiveSearchRow(props: InteractiveSearchRowProps) {
           tooltip={<EpisodeFormats formats={customFormats} />}
           position={tooltipPositions.LEFT}
         />
-      </TableRowCell>
+      </VirtualTableRowCell>
 
-      <TableRowCell className={styles.indexerFlags}>
+      <VirtualTableRowCell className={styles.indexerFlags}>
         {indexerFlags ? (
           <Popover
             anchor={<Icon name={icons.FLAG} />}
@@ -234,9 +330,9 @@ function InteractiveSearchRow(props: InteractiveSearchRowProps) {
             position={tooltipPositions.LEFT}
           />
         ) : null}
-      </TableRowCell>
+      </VirtualTableRowCell>
 
-      <TableRowCell className={styles.rejected}>
+      <VirtualTableRowCell className={styles.rejected}>
         {rejections.length ? (
           <Popover
             anchor={<Icon name={icons.DANGER} kind={kinds.DANGER} />}
@@ -244,22 +340,22 @@ function InteractiveSearchRow(props: InteractiveSearchRowProps) {
             body={
               <ul>
                 {rejections.map((rejection, index) => {
-                  return <li key={index}>{rejection}</li>;
+                  return <li key={index}>{rejection.message}</li>;
                 })}
               </ul>
             }
             position={tooltipPositions.LEFT}
           />
         ) : null}
-      </TableRowCell>
+      </VirtualTableRowCell>
 
-      <TableRowCell className={styles.download}>
+      <VirtualTableRowCell className={styles.download}>
         <SpinnerIconButton
           name={getDownloadIcon(isGrabbing, isGrabbed, grabError)}
           kind={getDownloadKind(isGrabbed, grabError)}
           title={getDownloadTooltip(isGrabbing, isGrabbed, grabError)}
           isSpinning={isGrabbing}
-          onPress={onGrabPressWrapper}
+          onPress={handleGrabPress}
         />
 
         <Link
@@ -281,7 +377,7 @@ function InteractiveSearchRow(props: InteractiveSearchRowProps) {
             />
           </div>
         </Link>
-      </TableRowCell>
+      </VirtualTableRowCell>
 
       <ConfirmModal
         isOpen={isConfirmGrabModalOpen}
@@ -308,9 +404,10 @@ function InteractiveSearchRow(props: InteractiveSearchRowProps) {
         protocol={protocol}
         isGrabbing={isGrabbing}
         grabError={grabError}
+        grabRelease={grabRelease}
         onModalClose={onOverrideModalClose}
       />
-    </TableRow>
+    </div>
   );
 }
 

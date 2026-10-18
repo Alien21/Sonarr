@@ -1,18 +1,19 @@
 import classNames from 'classnames';
-import moment from 'moment';
+import moment from 'moment-timezone';
 import React from 'react';
-import { useSelector } from 'react-redux';
-import { createSelector } from 'reselect';
-import AppState from 'App/State/AppState';
+import { useCalendarOption } from 'Calendar/calendarOptionsStore';
 import * as calendarViews from 'Calendar/calendarViews';
 import CalendarEvent from 'Calendar/Events/CalendarEvent';
 import CalendarEventGroup from 'Calendar/Events/CalendarEventGroup';
+import useCalendar, { useCalendarTime } from 'Calendar/useCalendar';
+import { useUiSettingsValues } from 'Settings/UI/useUiSettings';
 import {
   CalendarEvent as CalendarEventModel,
   CalendarEventGroup as CalendarEventGroupModel,
   CalendarItem,
 } from 'typings/Calendar';
-import styles from './CalendarDay.css';
+import translate from 'Utilities/String/translate';
+import styles from './CalendarDay.module.css';
 
 function sort(items: (CalendarEventModel | CalendarEventGroupModel)[]) {
   return items.sort((a, b) => {
@@ -28,63 +29,61 @@ function sort(items: (CalendarEventModel | CalendarEventGroupModel)[]) {
   });
 }
 
-function createCalendarEventsConnector(date: string) {
-  return createSelector(
-    (state: AppState) => state.calendar.items,
-    (state: AppState) => state.calendar.options.collapseMultipleEpisodes,
-    (items, collapseMultipleEpisodes) => {
-      const momentDate = moment(date);
-
-      const filtered = items.filter((item) => {
-        return momentDate.isSame(moment(item.airDateUtc), 'day');
-      });
-
-      if (!collapseMultipleEpisodes) {
-        return sort(
-          filtered.map((item) => ({
-            isGroup: false,
-            ...item,
-          }))
-        );
-      }
-
-      const groupedObject = Object.groupBy(
-        filtered,
-        (item: CalendarItem) => `${item.seriesId}-${item.seasonNumber}`
-      );
-
-      const grouped = Object.entries(groupedObject).reduce<
-        (CalendarEventModel | CalendarEventGroupModel)[]
-      >((acc, [, events]) => {
-        if (!events) {
-          return acc;
-        }
-
-        if (events.length === 1) {
-          acc.push({
-            isGroup: false,
-            ...events[0],
-          });
-        } else {
-          acc.push({
-            isGroup: true,
-            seriesId: events[0].seriesId,
-            seasonNumber: events[0].seasonNumber,
-            episodeIds: events.map((event) => event.id),
-            events: events.sort(
-              (a, b) =>
-                moment(a.airDateUtc).unix() - moment(b.airDateUtc).unix()
-            ),
-          });
-        }
-
-        return acc;
-      }, []);
-
-      return sort(grouped);
-    }
+const useCalendarEvents = (date: string) => {
+  const { data } = useCalendar();
+  const collapseMultipleEpisodes = useCalendarOption(
+    'collapseMultipleEpisodes'
   );
-}
+
+  const momentDate = moment(date);
+
+  const filtered = data.filter((item) => {
+    return momentDate.isSame(moment(item.airDateUtc), 'day');
+  });
+
+  if (!collapseMultipleEpisodes) {
+    return sort(
+      filtered.map((item) => ({
+        isGroup: false,
+        ...item,
+      }))
+    );
+  }
+
+  const groupedObject = Object.groupBy(
+    filtered,
+    (item: CalendarItem) => `${item.seriesId}-${item.seasonNumber}`
+  );
+
+  const grouped = Object.entries(groupedObject).reduce<
+    (CalendarEventModel | CalendarEventGroupModel)[]
+  >((acc, [, events]) => {
+    if (!events) {
+      return acc;
+    }
+
+    if (events.length === 1) {
+      acc.push({
+        isGroup: false,
+        ...events[0],
+      });
+    } else {
+      acc.push({
+        isGroup: true,
+        seriesId: events[0].seriesId,
+        seasonNumber: events[0].seasonNumber,
+        episodeIds: events.map((event) => event.id),
+        events: events.sort(
+          (a, b) => moment(a.airDateUtc).unix() - moment(b.airDateUtc).unix()
+        ),
+      });
+    }
+
+    return acc;
+  }, []);
+
+  return sort(grouped);
+};
 
 interface CalendarDayProps {
   date: string;
@@ -97,10 +96,13 @@ function CalendarDay({
   isTodaysDate,
   onEventModalOpenToggle,
 }: CalendarDayProps) {
-  const { time, view } = useSelector((state: AppState) => state.calendar);
-  const events = useSelector(createCalendarEventsConnector(date));
+  const view = useCalendarOption('view');
+  const time = useCalendarTime();
+  const events = useCalendarEvents(date);
+  const { longDateFormat } = useUiSettingsValues();
+  const momentDate = moment(date);
 
-  const ref = React.useRef<HTMLDivElement>(null);
+  const ref = React.useRef<HTMLTableCellElement>(null);
 
   React.useEffect(() => {
     if (isTodaysDate && view === calendarViews.MONTH && ref.current) {
@@ -109,11 +111,12 @@ function CalendarDay({
   }, [time, isTodaysDate, view]);
 
   return (
-    <div
+    <td
       ref={ref}
       className={classNames(
         styles.day,
-        view === calendarViews.DAY && styles.isSingleDay
+        view === calendarViews.DAY && styles.isSingleDay,
+        isTodaysDate && styles.isTodayCell
       )}
     >
       {view === calendarViews.MONTH && (
@@ -125,9 +128,20 @@ function CalendarDay({
               styles.isDifferentMonth
           )}
         >
-          {moment(date).date()}
+          <time
+            dateTime={momentDate.format('YYYY-MM-DD')}
+            aria-current={isTodaysDate ? 'date' : undefined}
+          >
+            <span className={styles.fullDate}>
+              {momentDate.format(longDateFormat)}
+            </span>
+            <span aria-hidden={true}>{momentDate.date()}</span>
+          </time>
         </div>
       )}
+      {!events.length && view === calendarViews.DAY ? (
+        <div className={styles.noEvents}>{translate('NoEpisodesAiring')}</div>
+      ) : null}
       <div>
         {events.map((event) => {
           if (event.isGroup) {
@@ -152,7 +166,7 @@ function CalendarDay({
           );
         })}
       </div>
-    </div>
+    </td>
   );
 }
 

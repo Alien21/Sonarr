@@ -1,8 +1,8 @@
 import classNames from 'classnames';
 import React, { useCallback, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { useSelect } from 'App/SelectContext';
-import { REFRESH_SERIES, SERIES_SEARCH } from 'Commands/commandNames';
+import { useSelect } from 'App/Select/SelectContext';
+import CommandNames from 'Commands/CommandNames';
+import { useExecuteCommand } from 'Commands/useCommands';
 import CheckInput from 'Components/Form/CheckInput';
 import HeartRating from 'Components/HeartRating';
 import IconButton from 'Components/Link/IconButton';
@@ -12,25 +12,27 @@ import RelativeDateCell from 'Components/Table/Cells/RelativeDateCell';
 import VirtualTableRowCell from 'Components/Table/Cells/VirtualTableRowCell';
 import VirtualTableSelectCell from 'Components/Table/Cells/VirtualTableSelectCell';
 import Column from 'Components/Table/Column';
-import TagListConnector from 'Components/TagListConnector';
+import getReleaseTypeName from 'Episode/getReleaseTypeName';
 import { icons } from 'Helpers/Props';
+import useCountryName from 'Internationalization/useCountryName';
 import DeleteSeriesModal from 'Series/Delete/DeleteSeriesModal';
 import EditSeriesModal from 'Series/Edit/EditSeriesModal';
-import createSeriesIndexItemSelector from 'Series/Index/createSeriesIndexItemSelector';
 import { Statistics } from 'Series/Series';
 import SeriesBanner from 'Series/SeriesBanner';
+import SeriesMovePending from 'Series/SeriesMovePending';
+import { useSeriesTableOptions } from 'Series/seriesOptionsStore';
 import SeriesTitleLink from 'Series/SeriesTitleLink';
-import { executeCommand } from 'Store/Actions/commandActions';
 import { SelectStateInputProps } from 'typings/props';
 import formatBytes from 'Utilities/Number/formatBytes';
 import titleCase from 'Utilities/String/titleCase';
 import translate from 'Utilities/String/translate';
 import SeriesIndexProgressBar from '../ProgressBar/SeriesIndexProgressBar';
+import useSeriesIndexItem from '../useSeriesIndexItem';
 import hasGrowableColumns from './hasGrowableColumns';
 import SeasonsCell from './SeasonsCell';
-import selectTableOptions from './selectTableOptions';
 import SeriesStatusCell from './SeriesStatusCell';
-import styles from './SeriesIndexRow.css';
+import TagsCell from './TagsCell';
+import styles from './SeriesIndexRow.module.css';
 
 interface SeriesIndexRowProps {
   seriesId: number;
@@ -48,68 +50,30 @@ function SeriesIndexRow(props: SeriesIndexRowProps) {
     latestSeason,
     isRefreshingSeries,
     isSearchingSeries,
-  } = useSelector(createSeriesIndexItemSelector(props.seriesId));
+  } = useSeriesIndexItem(seriesId);
 
-  const { showBanners, showSearchAction } = useSelector(selectTableOptions);
+  const { showBanners, showSearchAction } = useSeriesTableOptions();
 
-  const {
-    title,
-    monitored,
-    monitorNewItems,
-    status,
-    path,
-    titleSlug,
-    nextAiring,
-    previousAiring,
-    added,
-    statistics = {} as Statistics,
-    seasonFolder,
-    images,
-    seriesType,
-    network,
-    originalLanguage,
-    certification,
-    year,
-    useSceneNumbering,
-    genres = [],
-    ratings,
-    seasons = [],
-    tags = [],
-    isSaving = false,
-  } = series;
-
-  const {
-    seasonCount = 0,
-    episodeCount = 0,
-    episodeFileCount = 0,
-    totalEpisodeCount = 0,
-    sizeOnDisk = 0,
-    releaseGroups = [],
-  } = statistics;
-
-  const dispatch = useDispatch();
+  const executeCommand = useExecuteCommand();
   const [hasBannerError, setHasBannerError] = useState(false);
   const [isEditSeriesModalOpen, setIsEditSeriesModalOpen] = useState(false);
   const [isDeleteSeriesModalOpen, setIsDeleteSeriesModalOpen] = useState(false);
-  const [selectState, selectDispatch] = useSelect();
+  const { getIsSelected, toggleSelected } = useSelect();
+  const originalCountryName = useCountryName(series?.originalCountry);
 
   const onRefreshPress = useCallback(() => {
-    dispatch(
-      executeCommand({
-        name: REFRESH_SERIES,
-        seriesId,
-      })
-    );
-  }, [seriesId, dispatch]);
+    executeCommand({
+      name: CommandNames.RefreshSeries,
+      seriesIds: [seriesId],
+    });
+  }, [seriesId, executeCommand]);
 
   const onSearchPress = useCallback(() => {
-    dispatch(
-      executeCommand({
-        name: SERIES_SEARCH,
-        seriesId,
-      })
-    );
-  }, [seriesId, dispatch]);
+    executeCommand({
+      name: CommandNames.SeriesSearch,
+      seriesId,
+    });
+  }, [seriesId, executeCommand]);
 
   const onBannerLoadError = useCallback(() => {
     setHasBannerError(true);
@@ -142,22 +106,66 @@ function SeriesIndexRow(props: SeriesIndexRowProps) {
 
   const onSelectedChange = useCallback(
     ({ id, value, shiftKey }: SelectStateInputProps) => {
-      selectDispatch({
-        type: 'toggleSelected',
+      toggleSelected({
         id,
         isSelected: value,
         shiftKey,
       });
     },
-    [selectDispatch]
+    [toggleSelected]
   );
+
+  const nextAiring = series?.nextAiring;
+
+  if (!series) {
+    return null;
+  }
+
+  const {
+    title,
+    monitored,
+    monitorNewItems,
+    status,
+    path,
+    titleSlug,
+    pendingPath,
+    previousAiring,
+    added,
+    statistics = {} as Statistics,
+    seasonFolder,
+    images,
+    seriesType,
+    network,
+    originalLanguage,
+    certification,
+    year,
+    useSceneNumbering,
+    language,
+    seasonType,
+    seasonTypes,
+    genres = [],
+    ratings,
+    seasons = [],
+    tags = [],
+  } = series;
+
+  const {
+    seasonCount = 0,
+    episodeCount = 0,
+    episodeFileCount = 0,
+    totalEpisodeCount = 0,
+    sizeOnDisk = 0,
+    releaseGroups = [],
+    releaseTypes = [],
+    episodeFileQualities = [],
+  } = statistics;
 
   return (
     <>
       {isSelectMode ? (
         <VirtualTableSelectCell
           id={seriesId}
-          isSelected={selectState.selectedState[seriesId]}
+          isSelected={getIsSelected(seriesId)}
           isDisabled={false}
           onSelectedChange={onSelectedChange}
         />
@@ -179,7 +187,6 @@ function SeriesIndexRow(props: SeriesIndexRowProps) {
               monitored={monitored}
               status={status}
               isSelectMode={isSelectMode}
-              isSaving={isSaving}
               component={VirtualTableRowCell}
             />
           );
@@ -202,13 +209,14 @@ function SeriesIndexRow(props: SeriesIndexRowProps) {
                     images={images}
                     lazy={false}
                     overflow={true}
+                    title={title}
                     onError={onBannerLoadError}
                     onLoad={onBannerLoad}
                   />
 
-                  {hasBannerError && (
+                  {hasBannerError ? (
                     <div className={styles.overlayTitle}>{title}</div>
-                  )}
+                  ) : null}
                 </Link>
               ) : (
                 <SeriesTitleLink titleSlug={titleSlug} title={title} />
@@ -233,6 +241,14 @@ function SeriesIndexRow(props: SeriesIndexRowProps) {
           );
         }
 
+        if (name === 'originalCountry') {
+          return (
+            <VirtualTableRowCell key={name} className={styles[name]}>
+              {originalCountryName}
+            </VirtualTableRowCell>
+          );
+        }
+
         if (name === 'originalLanguage') {
           return (
             <VirtualTableRowCell key={name} className={styles[name]}>
@@ -244,12 +260,22 @@ function SeriesIndexRow(props: SeriesIndexRowProps) {
         if (name === 'qualityProfileId') {
           return (
             <VirtualTableRowCell key={name} className={styles[name]}>
-              {qualityProfile?.name ?? ''}
+              <span className={styles.qualityChip}>
+                {qualityProfile?.name ?? ''}
+              </span>
             </VirtualTableRowCell>
           );
         }
 
         if (name === 'nextAiring') {
+          if (!nextAiring) {
+            return (
+              <VirtualTableRowCell key={name} className={styles[name]}>
+                <span className={styles.nextAiringEmpty}>—</span>
+              </VirtualTableRowCell>
+            );
+          }
+
           return (
             // eslint-disable-next-line @typescript-eslint/ban-ts-comment
             // @ts-ignore ts(2739)
@@ -358,9 +384,27 @@ function SeriesIndexRow(props: SeriesIndexRowProps) {
         }
 
         if (name === 'episodeCount') {
+          const isComplete =
+            totalEpisodeCount > 0 && episodeFileCount >= totalEpisodeCount;
+          const fillPercent =
+            totalEpisodeCount > 0
+              ? Math.min(100, (episodeFileCount / totalEpisodeCount) * 100)
+              : 0;
+
           return (
             <VirtualTableRowCell key={name} className={styles[name]}>
-              {totalEpisodeCount}
+              <span>
+                {episodeFileCount} / {totalEpisodeCount}
+              </span>
+              <div className={styles.episodeBar}>
+                <div
+                  className={classNames(
+                    styles.episodeBarFill,
+                    isComplete && styles.episodeBarFillComplete
+                  )}
+                  style={{ width: `${fillPercent}%` }}
+                />
+              </div>
             </VirtualTableRowCell>
           );
         }
@@ -377,6 +421,13 @@ function SeriesIndexRow(props: SeriesIndexRowProps) {
           return (
             <VirtualTableRowCell key={name} className={styles[name]}>
               {path}
+
+              {pendingPath ? (
+                <SeriesMovePending
+                  className={styles.movePendingIcon}
+                  pendingPath={pendingPath}
+                />
+              ) : null}
             </VirtualTableRowCell>
           );
         }
@@ -385,6 +436,17 @@ function SeriesIndexRow(props: SeriesIndexRowProps) {
           return (
             <VirtualTableRowCell key={name} className={styles[name]}>
               {formatBytes(sizeOnDisk)}
+            </VirtualTableRowCell>
+          );
+        }
+
+        if (name === 'averageSizePerEpisode') {
+          const averageSize =
+            totalEpisodeCount > 0 ? sizeOnDisk / totalEpisodeCount : 0;
+
+          return (
+            <VirtualTableRowCell key={name} className={styles[name]}>
+              {averageSize ? formatBytes(averageSize) : null}
             </VirtualTableRowCell>
           );
         }
@@ -429,12 +491,46 @@ function SeriesIndexRow(props: SeriesIndexRowProps) {
           );
         }
 
-        if (name === 'tags') {
+        if (name === 'releaseTypes') {
+          const joinedReleaseTypes = releaseTypes
+            .map(getReleaseTypeName)
+            .join(', ');
+          const truncatedReleaseTypes =
+            releaseTypes.length > 3
+              ? `${releaseTypes
+                  .slice(0, 3)
+                  .map(getReleaseTypeName)
+                  .join(', ')}...`
+              : joinedReleaseTypes;
+
           return (
             <VirtualTableRowCell key={name} className={styles[name]}>
-              <TagListConnector tags={tags} />
+              <span title={joinedReleaseTypes}>{truncatedReleaseTypes}</span>
             </VirtualTableRowCell>
           );
+        }
+
+        if (name === 'episodeFileQualities') {
+          const joinedQualities = episodeFileQualities
+            .map((q) => q.name)
+            .join(', ');
+          const truncatedQualities =
+            episodeFileQualities.length > 3
+              ? `${episodeFileQualities
+                  .slice(0, 3)
+                  .map((q) => q.name)
+                  .join(', ')}...`
+              : joinedQualities;
+
+          return (
+            <VirtualTableRowCell key={name} className={styles[name]}>
+              <span title={joinedQualities}>{truncatedQualities}</span>
+            </VirtualTableRowCell>
+          );
+        }
+
+        if (name === 'tags') {
+          return <TagsCell key={name} className={styles[name]} tags={tags} />;
         }
 
         if (name === 'useSceneNumbering') {
@@ -461,6 +557,23 @@ function SeriesIndexRow(props: SeriesIndexRowProps) {
           );
         }
 
+        if (name === 'language') {
+          return (
+            <VirtualTableRowCell key={name} className={styles[name]}>
+              {language.name}
+            </VirtualTableRowCell>
+          );
+        }
+
+        if (name === 'seasonType') {
+          return (
+            <VirtualTableRowCell key={name} className={styles[name]}>
+              {seasonTypes.find((s) => s.type === seasonType)?.name ??
+                seasonType}
+            </VirtualTableRowCell>
+          );
+        }
+
         if (name === 'actions') {
           return (
             <VirtualTableRowCell key={name} className={styles[name]}>
@@ -483,6 +596,7 @@ function SeriesIndexRow(props: SeriesIndexRowProps) {
               <IconButton
                 name={icons.EDIT}
                 title={translate('EditSeries')}
+                aria-label={translate('EditSeries')}
                 onPress={onEditSeriesPress}
               />
             </VirtualTableRowCell>

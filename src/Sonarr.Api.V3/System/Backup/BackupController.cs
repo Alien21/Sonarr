@@ -20,7 +20,7 @@ namespace Sonarr.Api.V3.System.Backup
         private readonly IAppFolderInfo _appFolderInfo;
         private readonly IDiskProvider _diskProvider;
 
-        private static readonly List<string> ValidExtensions = new () { ".zip", ".db", ".xml" };
+        private static readonly List<string> ValidExtensions = new() { ".zip", ".db", ".xml" };
 
         public BackupController(IBackupService backupService,
                             IAppFolderInfo appFolderInfo,
@@ -92,7 +92,7 @@ namespace Sonarr.Api.V3.System.Backup
         }
 
         [HttpPost("restore/upload")]
-        [RequestFormLimits(MultipartBodyLengthLimit = 500000000)]
+        [RequestFormLimits(MultipartBodyLengthLimit = 5000000000)]
         public object UploadAndRestore()
         {
             var files = Request.Form.Files;
@@ -112,11 +112,15 @@ namespace Sonarr.Api.V3.System.Backup
 
             var path = Path.Combine(_appFolderInfo.TempFolder, $"sonarr_backup_restore{extension}");
 
-            _diskProvider.SaveStream(file.OpenReadStream(), path);
-            _backupService.Restore(path);
-
-            // Cleanup restored file
-            _diskProvider.DeleteFile(path);
+            try
+            {
+                _diskProvider.SaveStream(file.OpenReadStream(), path);
+                _backupService.Restore(path);
+            }
+            finally
+            {
+                _diskProvider.DeleteFile(path);
+            }
 
             return new
             {

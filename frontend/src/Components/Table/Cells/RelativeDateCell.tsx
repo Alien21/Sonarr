@@ -1,10 +1,9 @@
 import React from 'react';
-import { useSelector } from 'react-redux';
-import createUISettingsSelector from 'Store/Selectors/createUISettingsSelector';
+import { useUiSettingsValues } from 'Settings/UI/useUiSettings';
 import formatDateTime from 'Utilities/Date/formatDateTime';
 import getRelativeDate from 'Utilities/Date/getRelativeDate';
 import TableRowCell from './TableRowCell';
-import styles from './RelativeDateCell.css';
+import styles from './RelativeDateCell.module.css';
 
 interface RelativeDateCellProps {
   className?: string;
@@ -20,13 +19,12 @@ function RelativeDateCell(props: RelativeDateCellProps) {
     date,
     includeSeconds = false,
     includeTime = false,
-
     component: Component = TableRowCell,
     ...otherProps
   } = props;
 
   const { showRelativeDates, shortDateFormat, longDateFormat, timeFormat } =
-    useSelector(createUISettingsSelector());
+    useUiSettingsValues();
 
   if (!date) {
     return <Component className={className} {...otherProps} />;

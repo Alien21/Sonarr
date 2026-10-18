@@ -1,7 +1,9 @@
+import { autoUpdate, flip, size, useFloating } from '@floating-ui/react-dom';
 import classNames from 'classnames';
 import React, {
   FocusEvent,
   FormEvent,
+  Key,
   KeyboardEvent,
   KeyboardEventHandler,
   MutableRefObject,
@@ -19,11 +21,9 @@ import Autosuggest, {
   RenderInputComponentProps,
   RenderSuggestionsContainerParams,
 } from 'react-autosuggest';
-import { Manager, Popper, Reference } from 'react-popper';
-import Portal from 'Components/Portal';
 import usePrevious from 'Helpers/Hooks/usePrevious';
 import { InputChanged } from 'typings/inputs';
-import styles from './AutoSuggestInput.css';
+import styles from './AutoSuggestInput.module.css';
 
 interface AutoSuggestInputProps<T>
   extends Omit<AutosuggestPropsBase<T>, 'renderInputComponent' | 'inputProps'> {
@@ -37,7 +37,6 @@ interface AutoSuggestInputProps<T>
   hasError?: boolean;
   hasWarning?: boolean;
   enforceMaxHeight?: boolean;
-  minHeight?: number;
   maxHeight?: number;
   renderInputComponent?: (
     inputProps: RenderInputComponentProps,
@@ -70,7 +69,6 @@ function AutoSuggestInput<T = any>(props: AutoSuggestInputProps<T>) {
     enforceMaxHeight = true,
     hasError,
     hasWarning,
-    minHeight = 50,
     maxHeight = 200,
     getSuggestionValue,
     renderSuggestion,
@@ -89,95 +87,68 @@ function AutoSuggestInput<T = any>(props: AutoSuggestInputProps<T>) {
   const updater = useRef<(() => void) | null>(null);
   const previousSuggestions = usePrevious(suggestions);
 
-  const handleComputeMaxHeight = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (data: any) => {
-      const { top, bottom, width } = data.offsets.reference;
-
-      if (enforceMaxHeight) {
-        data.styles.maxHeight = maxHeight;
-      } else {
-        const windowHeight = window.innerHeight;
-
-        if (/^botton/.test(data.placement)) {
-          data.styles.maxHeight = windowHeight - bottom;
-        } else {
-          data.styles.maxHeight = top;
-        }
-      }
-
-      data.styles.width = width;
-
-      return data;
-    },
-    [enforceMaxHeight, maxHeight]
-  );
+  const { refs, floatingStyles } = useFloating({
+    middleware: [
+      flip({
+        crossAxis: false,
+        mainAxis: true,
+      }),
+      size({
+        apply({ availableHeight, elements, rects }) {
+          Object.assign(elements.floating.style, {
+            minWidth: `${rects.reference.width}px`,
+            maxHeight: `${Math.max(0, availableHeight)}px`,
+          });
+        },
+      }),
+    ],
+    placement: 'bottom-start',
+    whileElementsMounted: autoUpdate,
+  });
 
   const createRenderInputComponent = useCallback(
     (inputProps: RenderInputComponentProps) => {
-      return (
-        <Reference>
-          {({ ref }) => {
-            if (renderInputComponent) {
-              return renderInputComponent(inputProps, ref);
-            }
+      const { key, ...otherInputProps } =
+        inputProps as RenderInputComponentProps & {
+          key?: Key;
+        };
 
-            return (
-              <div ref={ref}>
-                <input {...inputProps} />
-              </div>
-            );
-          }}
-        </Reference>
+      if (renderInputComponent) {
+        return renderInputComponent(otherInputProps, refs.setReference);
+      }
+
+      return (
+        <div ref={refs.setReference}>
+          <input key={key} {...otherInputProps} />
+        </div>
       );
     },
-    [renderInputComponent]
+    [refs.setReference, renderInputComponent]
   );
 
   const renderSuggestionsContainer = useCallback(
     ({ containerProps, children }: RenderSuggestionsContainerParams) => {
+      const { key, ...otherContainerProps } = containerProps;
+
       return (
-        <Portal>
-          <Popper
-            placement="bottom-start"
-            modifiers={{
-              computeMaxHeight: {
-                order: 851,
-                enabled: true,
-                fn: handleComputeMaxHeight,
-              },
-              flip: {
-                padding: minHeight,
-              },
+        <div
+          ref={refs.setFloating}
+          style={floatingStyles}
+          className={children ? styles.suggestionsContainerOpen : undefined}
+        >
+          <div
+            key={key}
+            {...otherContainerProps}
+            style={{
+              maxHeight: enforceMaxHeight ? maxHeight : undefined,
             }}
           >
-            {({ ref: popperRef, style, scheduleUpdate }) => {
-              updater.current = scheduleUpdate;
-
-              return (
-                <div
-                  ref={popperRef}
-                  style={style}
-                  className={
-                    children ? styles.suggestionsContainerOpen : undefined
-                  }
-                >
-                  <div
-                    {...containerProps}
-                    style={{
-                      maxHeight: style.maxHeight,
-                    }}
-                  >
-                    {children}
-                  </div>
-                </div>
-              );
-            }}
-          </Popper>
-        </Portal>
+            {children}
+          </div>
+        </div>
       );
     },
-    [minHeight, handleComputeMaxHeight]
+    [enforceMaxHeight, floatingStyles, maxHeight, refs.setFloating]
   );
 
   const handleInputKeyDown = useCallback(
@@ -236,23 +207,21 @@ function AutoSuggestInput<T = any>(props: AutoSuggestInputProps<T>) {
   }, [suggestions, previousSuggestions]);
 
   return (
-    <Manager>
-      <Autosuggest
-        {...otherProps}
-        ref={forwardedRef}
-        id={name}
-        inputProps={inputProps}
-        theme={theme}
-        suggestions={suggestions}
-        getSuggestionValue={getSuggestionValue}
-        renderInputComponent={createRenderInputComponent}
-        renderSuggestionsContainer={renderSuggestionsContainer}
-        renderSuggestion={renderSuggestion}
-        onSuggestionSelected={onSuggestionSelected}
-        onSuggestionsFetchRequested={onSuggestionsFetchRequested}
-        onSuggestionsClearRequested={onSuggestionsClearRequested}
-      />
-    </Manager>
+    <Autosuggest
+      {...otherProps}
+      ref={forwardedRef}
+      id={name}
+      inputProps={inputProps}
+      theme={theme}
+      suggestions={suggestions}
+      getSuggestionValue={getSuggestionValue}
+      renderInputComponent={createRenderInputComponent}
+      renderSuggestionsContainer={renderSuggestionsContainer}
+      renderSuggestion={renderSuggestion}
+      onSuggestionSelected={onSuggestionSelected}
+      onSuggestionsFetchRequested={onSuggestionsFetchRequested}
+      onSuggestionsClearRequested={onSuggestionsClearRequested}
+    />
   );
 }
 

@@ -1,7 +1,7 @@
 using System.Linq;
 using NLog;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Download.Pending;
-using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Profiles.Delay;
 using NzbDrone.Core.Qualities;
@@ -12,23 +12,26 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
     {
         private readonly IPendingReleaseService _pendingReleaseService;
         private readonly IDelayProfileService _delayProfileService;
+        private readonly IConfigService _configService;
         private readonly Logger _logger;
 
         public DelaySpecification(IPendingReleaseService pendingReleaseService,
                                   IDelayProfileService delayProfileService,
+                                  IConfigService configService,
                                   Logger logger)
         {
             _pendingReleaseService = pendingReleaseService;
             _delayProfileService = delayProfileService;
+            _configService = configService;
             _logger = logger;
         }
 
         public SpecificationPriority Priority => SpecificationPriority.Database;
         public RejectionType Type => RejectionType.Temporary;
 
-        public virtual DownloadSpecDecision IsSatisfiedBy(RemoteEpisode subject, SearchCriteriaBase searchCriteria)
+        public virtual DownloadSpecDecision IsSatisfiedBy(RemoteEpisode subject, ReleaseDecisionInformation information)
         {
-            if (searchCriteria != null && searchCriteria.UserInvokedSearch)
+            if (information.SearchCriteria is { UserInvokedSearch: true })
             {
                 _logger.Debug("Ignoring delay for user invoked search");
                 return DownloadSpecDecision.Accept();
@@ -38,6 +41,7 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
             var delayProfile = _delayProfileService.BestForTags(subject.Series.Tags);
             var delay = delayProfile.GetProtocolDelay(subject.Release.DownloadProtocol);
             var isPreferredProtocol = subject.Release.DownloadProtocol == delayProfile.PreferredProtocol;
+            var preferPropersAndRepacks = _configService.DownloadPropersAndRepacks == ProperDownloadTypes.PreferAndUpgrade;
 
             if (delay == 0)
             {
@@ -49,7 +53,7 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
 
             var qualityComparer = new QualityModelComparer(qualityProfile);
 
-            if (isPreferredProtocol)
+            if (isPreferredProtocol && preferPropersAndRepacks)
             {
                 foreach (var file in subject.Episodes.Where(c => c.EpisodeFileId != 0).Select(c => c.EpisodeFile.Value))
                 {

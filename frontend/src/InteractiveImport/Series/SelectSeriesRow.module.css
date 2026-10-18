@@ -1,0 +1,38 @@
+.cell {
+  composes: cell from 'Components/Table/Cells/VirtualTableRowCell.module.css';
+
+  display: flex;
+  align-items: center;
+}
+
+.title {
+  composes: cell;
+
+  flex: 4 0 140px;
+}
+
+.year {
+  composes: cell;
+
+  flex: 0 0 70px;
+}
+
+.tvdbId,
+.imdbId {
+  composes: cell;
+
+  flex: 0 0 110px;
+}
+
+.externalLink {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.externalLink:hover span,
+.externalLink:focus span {
+  border-color: var(--primaryColor);
+  background-color: var(--primaryColor);
+  color: var(--white);
+}

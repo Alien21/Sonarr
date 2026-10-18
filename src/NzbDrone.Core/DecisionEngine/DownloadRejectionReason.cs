@@ -10,6 +10,7 @@ public enum DownloadRejectionReason
     Error,
     DecisionError,
     MinimumAgeDelay,
+    MinimumAgeDelayPushed,
     SeriesNotMonitored,
     EpisodeNotMonitored,
     HistoryRecentCutoffMet,
@@ -73,5 +74,7 @@ public enum DownloadRejectionReason
     DiskCustomFormatCutoffMet,
     DiskCustomFormatScore,
     DiskCustomFormatScoreIncrement,
-    DiskUpgradesNotAllowed
+    DiskUpgradesNotAllowed,
+    DiskNotUpgrade,
+    BeforeAirDate
 }

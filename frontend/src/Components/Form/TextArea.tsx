@@ -7,9 +7,9 @@ import React, {
   useRef,
 } from 'react';
 import { InputChanged } from 'typings/inputs';
-import styles from './TextArea.css';
+import styles from './TextArea.module.css';
 
-interface TextAreaProps {
+export interface TextAreaProps {
   className?: string;
   readOnly?: boolean;
   autoFocus?: boolean;

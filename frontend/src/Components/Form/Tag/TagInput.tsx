@@ -1,5 +1,4 @@
 import classNames from 'classnames';
-import PropTypes from 'prop-types';
 import React, {
   KeyboardEvent,
   Ref,
@@ -15,15 +14,13 @@ import {
   RenderSuggestion,
   SuggestionsFetchRequestedParams,
 } from 'react-autosuggest';
-import useDebouncedCallback from 'Helpers/Hooks/useDebouncedCallback';
-import { kinds } from 'Helpers/Props';
+import { useDebouncedCallback } from 'use-debounce';
 import { Kind } from 'Helpers/Props/kinds';
-import tagShape from 'Helpers/Props/Shapes/tagShape';
 import { InputChanged } from 'typings/inputs';
 import AutoSuggestInput from '../AutoSuggestInput';
 import TagInputInput from './TagInputInput';
 import TagInputTag, { EditedTag, TagInputTagProps } from './TagInputTag';
-import styles from './TagInput.css';
+import styles from './TagInput.module.css';
 
 export interface TagBase {
   id: boolean | number | string | null;
@@ -68,7 +65,7 @@ export interface TagInputProps<T extends TagBase> {
   inputContainerClassName?: string;
   name: string;
   tags: T[];
-  tagList: T[];
+  tagList: ReadonlyArray<T>;
   allowNew?: boolean;
   kind?: Kind;
   placeholder?: string;
@@ -94,7 +91,7 @@ function TagInput<T extends TagBase>({
   tags,
   tagList,
   allowNew = true,
-  kind = 'info',
+  kind = 'default',
   placeholder = '',
   delimiters = ['Tab', 'Enter', ' ', ','],
   minQueryLength = 1,
@@ -336,36 +333,5 @@ function TagInput<T extends TagBase>({
     />
   );
 }
-
-TagInput.propTypes = {
-  className: PropTypes.string,
-  inputContainerClassName: PropTypes.string,
-  tags: PropTypes.arrayOf(PropTypes.shape(tagShape)).isRequired,
-  tagList: PropTypes.arrayOf(PropTypes.shape(tagShape)).isRequired,
-  allowNew: PropTypes.bool,
-  kind: PropTypes.oneOf(kinds.all),
-  placeholder: PropTypes.string,
-  delimiters: PropTypes.arrayOf(PropTypes.string),
-  minQueryLength: PropTypes.number,
-  canEdit: PropTypes.bool,
-  hasError: PropTypes.bool,
-  hasWarning: PropTypes.bool,
-  tagComponent: PropTypes.elementType,
-  onTagAdd: PropTypes.func.isRequired,
-  onTagDelete: PropTypes.func.isRequired,
-  onTagReplace: PropTypes.func,
-};
-
-TagInput.defaultProps = {
-  className: styles.internalInput,
-  inputContainerClassName: styles.input,
-  allowNew: true,
-  kind: kinds.INFO,
-  placeholder: '',
-  delimiters: ['Tab', 'Enter', ' ', ','],
-  minQueryLength: 1,
-  canEdit: false,
-  tagComponent: TagInputTag,
-};
 
 export default TagInput;

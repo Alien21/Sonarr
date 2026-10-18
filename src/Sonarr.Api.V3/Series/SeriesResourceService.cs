@@ -3,14 +3,15 @@ using System.Linq;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Languages;
-using NzbDrone.Core.Tv.Translations;
+using NzbDrone.Core.Tv;
+using CoreSeries = NzbDrone.Core.Tv.Series;
 
 namespace Sonarr.Api.V3.Series
 {
     public interface ISeriesResourceService
     {
-        SeriesResource ToResource(NzbDrone.Core.Tv.Series series, bool includeSeasonImages = false);
-        List<SeriesResource> ToResource(List<NzbDrone.Core.Tv.Series> series, bool includeSeasonImages = false);
+        SeriesResource ToResource(CoreSeries series, bool includeSeasonImages = false);
+        List<SeriesResource> ToResource(IEnumerable<CoreSeries> series, bool includeSeasonImages = false);
     }
 
     public class SeriesResourceService : ISeriesResourceService
@@ -18,97 +19,67 @@ namespace Sonarr.Api.V3.Series
         private readonly IConfigService _configService;
         private readonly ISeriesTranslationService _seriesTranslationService;
 
-        public SeriesResourceService(IConfigService configService,
-                                     ISeriesTranslationService seriesTranslationService)
+        public SeriesResourceService(IConfigService configService, ISeriesTranslationService seriesTranslationService)
         {
             _configService = configService;
             _seriesTranslationService = seriesTranslationService;
         }
 
-        public SeriesResource ToResource(NzbDrone.Core.Tv.Series series, bool includeSeasonImages = false)
+        public SeriesResource ToResource(CoreSeries series, bool includeSeasonImages = false)
         {
             if (series == null)
             {
                 return null;
             }
 
-            return series.ToResource(GetSeriesTranslation(series), includeSeasonImages);
+            var language = GetConfiguredLanguage(series);
+            var translations = series.Id > 0 && NeedsStoredTranslations(series, language)
+                ? _seriesTranslationService.GetTranslations(series.Id)
+                : new List<SeriesTranslation>();
+
+            return MapToResource(series, translations, language, includeSeasonImages);
         }
 
-        public List<SeriesResource> ToResource(List<NzbDrone.Core.Tv.Series> series, bool includeSeasonImages = false)
+        public List<SeriesResource> ToResource(IEnumerable<CoreSeries> series, bool includeSeasonImages = false)
         {
             if (series == null)
             {
                 return null;
             }
 
-            var language = GetConfiguredLanguage();
+            var models = series.ToList();
+            var translations = models.Any(s => s.Id > 0 && NeedsStoredTranslations(s, GetConfiguredLanguage(s)))
+                ? _seriesTranslationService.GetTranslations()
+                : new List<SeriesTranslation>();
+            var translationsBySeries = translations.ToLookup(t => t.SeriesId);
 
-            if (language == Language.English)
-            {
-                return series.ToResource(includeSeasonImages);
-            }
-
-            if (language == Language.Original)
-            {
-                return series.Select(s => ToResource(s, includeSeasonImages)).ToList();
-            }
-
-            var translations = _seriesTranslationService
-                .GetAllTranslationsForLanguage(language)
-                .ToDictionaryIgnoreDuplicates(x => x.SeriesId);
-
-            return series.Select(s => s.ToResource(GetTranslationFromDict(translations, s, language), includeSeasonImages)).ToList();
+            return models.Select(s => MapToResource(s, translationsBySeries[s.Id], GetConfiguredLanguage(s), includeSeasonImages)).ToList();
         }
 
-        private Language GetConfiguredLanguage()
+        private bool NeedsStoredTranslations(CoreSeries series, Language language)
         {
-            if (!_configService.UseSeriesInfoLanguage)
-            {
-                return Language.English;
-            }
+            var translations = series.Translations ?? new List<SeriesTranslation>();
 
-            return (Language)_configService.SeriesInfoLanguage;
+            return !translations.Any(t => t.Language == Language.English && t.Title.IsNotNullOrWhiteSpace()) ||
+                   (_configService.UseSeriesInfoLanguage && !translations.Any(t => t.Language == language));
         }
 
-        private SeriesTranslation GetSeriesTranslation(NzbDrone.Core.Tv.Series series)
+        private SeriesResource MapToResource(CoreSeries series, IEnumerable<SeriesTranslation> storedTranslations, Language language, bool includeSeasonImages)
         {
-            var language = GetConfiguredLanguage();
+            var translations = (series.Translations ?? new List<SeriesTranslation>()).Concat(storedTranslations).ToList();
+            var translation = _configService.UseSeriesInfoLanguage
+                ? translations.FirstOrDefault(t => t.Language == language)
+                : null;
+            var defaultTitle = translations.FirstOrDefault(t => t.Language == Language.English && t.Title.IsNotNullOrWhiteSpace())?.Title;
 
-            if (language == Language.Original)
-            {
-                language = series.OriginalLanguage;
-            }
-
-            if (language == Language.English)
-            {
-                return null;
-            }
-
-            return series.Translations?.FirstOrDefault(t => t.Language == language) ??
-                   (series.Id > 0 ? _seriesTranslationService.GetAllTranslationsForSeries(series.Id).FirstOrDefault(t => t.Language == language) : null);
+            return series.ToResource(translation, includeSeasonImages, defaultTitle);
         }
 
-        private SeriesTranslation GetTranslationFromDict(Dictionary<int, SeriesTranslation> translations, NzbDrone.Core.Tv.Series series, Language language)
+        private Language GetConfiguredLanguage(CoreSeries series)
         {
-            if (language == Language.English)
-            {
-                return null;
-            }
+            var language = _configService.UseSeriesInfoLanguage ? (Language)_configService.SeriesInfoLanguage : Language.English;
 
-            var embeddedTranslation = series.Translations?.FirstOrDefault(t => t.Language == language);
-
-            if (embeddedTranslation != null)
-            {
-                return embeddedTranslation;
-            }
-
-            if (!translations.TryGetValue(series.Id, out var translation))
-            {
-                return null;
-            }
-
-            return translation;
+            return language == Language.Original ? series.OriginalLanguage : language;
         }
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Datastore.Events;
 using NzbDrone.Core.Download.Pending;
@@ -11,18 +12,19 @@ using Sonarr.Api.V3.Series;
 using Sonarr.Http;
 using Sonarr.Http.REST;
 
+#pragma warning disable CS0612
 namespace Sonarr.Api.V3.Queue
 {
     [V3ApiController("queue/details")]
     public class QueueDetailsController : RestControllerWithSignalR<QueueResource, NzbDrone.Core.Queue.Queue>,
-                               IHandle<QueueUpdatedEvent>, IHandle<PendingReleasesUpdatedEvent>
+                               IHandle<ObsoleteQueueUpdatedEvent>, IHandle<PendingReleasesUpdatedEvent>
     {
-        private readonly IQueueService _queueService;
+        private readonly IObsoleteQueueService _queueService;
         private readonly IPendingReleaseService _pendingReleaseService;
         private readonly ISeriesResourceService _seriesResourceService;
 
         public QueueDetailsController(IBroadcastSignalRMessage broadcastSignalRMessage,
-                                      IQueueService queueService,
+                                      IObsoleteQueueService queueService,
                                       IPendingReleaseService pendingReleaseService,
                                       ISeriesResourceService seriesResourceService)
             : base(broadcastSignalRMessage)
@@ -33,7 +35,7 @@ namespace Sonarr.Api.V3.Queue
         }
 
         [NonAction]
-        public override ActionResult<QueueResource> GetResourceByIdWithErrorHandler(int id)
+        public override Results<Ok<QueueResource>, NotFound> GetResourceByIdWithErrorHandler(int id)
         {
             return base.GetResourceByIdWithErrorHandler(id);
         }
@@ -65,7 +67,7 @@ namespace Sonarr.Api.V3.Queue
         }
 
         [NonAction]
-        public void Handle(QueueUpdatedEvent message)
+        public void Handle(ObsoleteQueueUpdatedEvent message)
         {
             BroadcastResourceChange(ModelAction.Sync);
         }
@@ -77,3 +79,4 @@ namespace Sonarr.Api.V3.Queue
         }
     }
 }
+#pragma warning restore CS0612

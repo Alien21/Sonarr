@@ -20,21 +20,21 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.Search
         public SpecificationPriority Priority => SpecificationPriority.Default;
         public RejectionType Type => RejectionType.Permanent;
 
-        public DownloadSpecDecision IsSatisfiedBy(RemoteEpisode remoteEpisode, SearchCriteriaBase searchCriteria)
+        public DownloadSpecDecision IsSatisfiedBy(RemoteEpisode remoteEpisode, ReleaseDecisionInformation information)
         {
+            var searchCriteria = information.SearchCriteria;
+
             if (searchCriteria == null)
             {
                 return DownloadSpecDecision.Accept();
             }
 
-            var singleEpisodeSpec = searchCriteria as SingleEpisodeSearchCriteria;
-            if (singleEpisodeSpec != null)
+            if (searchCriteria is SingleEpisodeSearchCriteria singleEpisodeSpec)
             {
                 return IsSatisfiedBy(remoteEpisode, singleEpisodeSpec);
             }
 
-            var animeEpisodeSpec = searchCriteria as AnimeEpisodeSearchCriteria;
-            if (animeEpisodeSpec != null)
+            if (searchCriteria is AnimeEpisodeSearchCriteria animeEpisodeSpec)
             {
                 return IsSatisfiedBy(remoteEpisode, animeEpisodeSpec);
             }
@@ -44,7 +44,13 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.Search
 
         private DownloadSpecDecision IsSatisfiedBy(RemoteEpisode remoteEpisode, SingleEpisodeSearchCriteria singleEpisodeSpec)
         {
-            if (singleEpisodeSpec.SeasonNumber != remoteEpisode.ParsedEpisodeInfo.SeasonNumber)
+            var seasonNumbers = remoteEpisode.ParsedEpisodeInfo.SeasonNumbers;
+
+            var seasonMatches = seasonNumbers.Count > 0
+                ? seasonNumbers.Contains(singleEpisodeSpec.SeasonNumber)
+                : singleEpisodeSpec.SeasonNumber == remoteEpisode.MappedSeasonNumber;
+
+            if (!seasonMatches)
             {
                 _logger.Debug("Season number does not match searched season number, skipping.");
                 return DownloadSpecDecision.Reject(DownloadRejectionReason.WrongSeason, "Wrong season");

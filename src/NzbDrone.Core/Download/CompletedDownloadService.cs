@@ -25,7 +25,6 @@ using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Tags;
 using NzbDrone.Core.Tv;
-using NzbDrone.Core.Tv.Translations;
 
 namespace NzbDrone.Core.Download
 {
@@ -69,6 +68,8 @@ namespace NzbDrone.Core.Download
         private readonly ITagService _tagService;
         private readonly IProvideSeriesInfo _seriesInfo;
         private readonly IRefreshEpisodeService _refreshEpisodeService;
+        private readonly IRejectedFileExtensionService _rejectedFileExtensionService;
+        private readonly IProvideDownloadClient _downloadClientProvider;
         private readonly Logger _logger;
 
         public CompletedDownloadService(IEventAggregator eventAggregator,
@@ -93,6 +94,8 @@ namespace NzbDrone.Core.Download
                                         IProvideSeriesInfo seriesInfo,
                                         IRefreshEpisodeService refreshEpisodeService,
                                         IConfigService configService,
+                                        IRejectedFileExtensionService rejectedFileExtensionService,
+                                        IProvideDownloadClient downloadClientProvider,
                                         Logger logger)
         {
             _eventAggregator = eventAggregator;
@@ -117,6 +120,8 @@ namespace NzbDrone.Core.Download
             _seriesInfo = seriesInfo;
             _refreshEpisodeService = refreshEpisodeService;
             _configService = configService;
+            _rejectedFileExtensionService = rejectedFileExtensionService;
+            _downloadClientProvider = downloadClientProvider;
             _logger = logger;
         }
 
@@ -283,6 +288,11 @@ namespace NzbDrone.Core.Download
 
             if (importResults.Empty())
             {
+                if (ProcessRejectedDownloadClientFiles(trackedDownload))
+                {
+                    return;
+                }
+
                 trackedDownload.Warn("No files found are eligible for import in {0}", outputPath);
 
                 return;
@@ -294,6 +304,18 @@ namespace NzbDrone.Core.Download
 
                 if (_rejectedImportService.Process(trackedDownload, firstResult))
                 {
+                    if (trackedDownload.State != TrackedDownloadState.FailedPending)
+                    {
+                        SetStateToImportBlocked(trackedDownload);
+                    }
+
+                    return;
+                }
+
+                if (firstResult.ImportDecision.Rejections.FirstOrDefault()?.Reason == ImportRejectionReason.MultiSeason)
+                {
+                    trackedDownload.Warn(new TrackedDownloadStatusMessage(trackedDownload.DownloadItem.Title, firstResult.Errors));
+                    SetStateToImportBlocked(trackedDownload);
                     return;
                 }
             }
@@ -394,12 +416,63 @@ namespace NzbDrone.Core.Download
             return false;
         }
 
+        private bool ProcessRejectedDownloadClientFiles(TrackedDownload trackedDownload)
+        {
+            var files = GetDownloadClientFiles(trackedDownload);
+
+            if (files.Empty())
+            {
+                return false;
+            }
+
+            var rejection = _rejectedFileExtensionService.GetRejection(files.Select(f => f.RelativePath));
+
+            if (rejection == null)
+            {
+                return false;
+            }
+
+            _logger.Debug("Download '{0}' has no files to import, but the download client reports a rejected file: {1}", trackedDownload.DownloadItem.Title, rejection.Message);
+
+            var importResult = new ImportResult(new ImportDecision(null, rejection), rejection.Message);
+
+            if (!_rejectedImportService.Process(trackedDownload, importResult))
+            {
+                return false;
+            }
+
+            if (trackedDownload.State != TrackedDownloadState.FailedPending)
+            {
+                SetStateToImportBlocked(trackedDownload);
+            }
+
+            return true;
+        }
+
+        private List<DownloadClientFile> GetDownloadClientFiles(TrackedDownload trackedDownload)
+        {
+            try
+            {
+                var downloadClient = _downloadClientProvider.Get(trackedDownload.DownloadClient);
+
+                return downloadClient.GetFiles(trackedDownload.DownloadItem).ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "Unable to get files for download '{0}' from download client", trackedDownload.DownloadItem.Title);
+
+                return new List<DownloadClientFile>();
+            }
+        }
+
         private void SetStateToImportBlocked(TrackedDownload trackedDownload)
         {
             trackedDownload.State = TrackedDownloadState.ImportBlocked;
 
             if (!trackedDownload.HasNotifiedManualInteractionRequired)
             {
+                _logger.Warn("Import blocked for '{0}': {1}", trackedDownload.DownloadItem.Title, trackedDownload.StatusMessages.SelectMany(m => m.Messages).ConcatToString("; "));
+
                 var grabbedHistories = _historyService.FindByDownloadId(trackedDownload.DownloadItem.DownloadId).Where(h => h.EventType == EpisodeHistoryEventType.Grabbed).ToList();
 
                 trackedDownload.HasNotifiedManualInteractionRequired = true;
@@ -800,8 +873,8 @@ namespace NzbDrone.Core.Download
                     FormatValues(queueEpisode?.Languages),
                     FormatValues(trackedDownload.AnalyzedSubtitleLanguages),
                     mediaInfo?.Title ?? "none",
-                    FormatValues(mediaInfo?.AudioLanguages),
-                    FormatValues(mediaInfo?.Subtitles),
+                    FormatValues(mediaInfo?.AudioStreams?.Select(stream => stream.Language)),
+                    FormatValues(mediaInfo?.SubtitleStreams?.Select(stream => stream.Language)),
                     FormatExternalSubtitleFiles(externalSubtitles),
                     FormatEpisodes(queueEpisode?.Episodes));
             }
@@ -889,7 +962,7 @@ namespace NzbDrone.Core.Download
 
             if (series != null)
             {
-                return _importDecisionMaker.GetImportDecisions(videoFiles, series, trackedDownload.ImportItem, folderInfo, true, false)
+                return _importDecisionMaker.GetImportDecisions(videoFiles, series, trackedDownload.ImportItem, trackedDownload.RemoteEpisode?.ParsedEpisodeInfo, folderInfo, true, false)
                                            .Select(decision => decision.LocalEpisode)
                                            .Where(HasQueueMetadata)
                                            .OrderBy(localEpisode => localEpisode.Path)
@@ -916,7 +989,7 @@ namespace NzbDrone.Core.Download
                 return new List<ImportDecision>();
             }
 
-            return _importDecisionMaker.GetImportDecisions(videoFiles, series, trackedDownload.ImportItem, folderInfo, true, false);
+            return _importDecisionMaker.GetImportDecisions(videoFiles, series, trackedDownload.ImportItem, trackedDownload.RemoteEpisode?.ParsedEpisodeInfo, folderInfo, true, false);
         }
 
         private bool TryGetCompletedDownloadVideoFiles(string outputPath, out ParsedEpisodeInfo folderInfo, out List<string> videoFiles)
@@ -995,7 +1068,7 @@ namespace NzbDrone.Core.Download
         {
             var languages = new List<Language>();
 
-            var embeddedSubtitleLanguages = localEpisode.MediaInfo?.Subtitles?
+            var embeddedSubtitleLanguages = localEpisode.MediaInfo?.SubtitleStreams?.Select(stream => stream.Language)?
                                                         .Where(language => language.IsNotNullOrWhiteSpace())
                                                         .Distinct()
                                                         .ToList() ?? new List<string>();
@@ -1079,7 +1152,7 @@ namespace NzbDrone.Core.Download
 
             if (subtitleEpisodeInfo == null ||
                 !string.Equals(subtitleEpisodeInfo.SeriesTitle, fileEpisodeInfo.SeriesTitle, StringComparison.InvariantCultureIgnoreCase) ||
-                subtitleEpisodeInfo.SeasonNumber != fileEpisodeInfo.SeasonNumber)
+                !subtitleEpisodeInfo.SeasonNumbers.SequenceEqual(fileEpisodeInfo.SeasonNumbers))
             {
                 return false;
             }
@@ -1205,14 +1278,14 @@ namespace NzbDrone.Core.Download
                 var importDecisionBlockMessage = FormatAutoImportBlockReason(importDecisionBlockReason);
 
                 trackedDownload.Warn("Auto-import blocked: {0}", importDecisionBlockMessage);
-                _logger.Warn("Auto-import blocked for '{0}': import rejected while replacing existing episode file: {1}", trackedDownload.DownloadItem.Title, importDecisionBlockReason);
+                _logger.Debug("Auto-import blocked for '{0}': import rejected while replacing existing episode file: {1}", trackedDownload.DownloadItem.Title, importDecisionBlockReason);
                 SetStateToImportBlocked(trackedDownload);
 
                 return true;
             }
 
             trackedDownload.Warn("Auto-import blocked: one or more matched episodes already have files in library.");
-            _logger.Warn("Auto-import blocked for '{0}': one or more matched episodes already have files in library.", trackedDownload.DownloadItem.Title);
+            _logger.Debug("Auto-import blocked for '{0}': one or more matched episodes already have files in library.", trackedDownload.DownloadItem.Title);
             SetStateToImportBlocked(trackedDownload);
 
             return true;
@@ -1430,9 +1503,9 @@ namespace NzbDrone.Core.Download
         {
             var languages = new AudioLanguageSet();
 
-            foreach (var audioLanguage in mediaInfo?.AudioLanguages ?? new List<string>())
+            foreach (var audioStream in mediaInfo?.AudioStreams ?? new List<MediaInfoAudioStreamModel>())
             {
-                AddRawLanguage(languages, audioLanguage);
+                AddRawLanguage(languages, audioStream.Language);
             }
 
             foreach (var language in parsedLanguages ?? new List<Language>())

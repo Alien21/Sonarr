@@ -6,7 +6,7 @@ namespace NzbDrone.Core.MediaFiles
 {
     public static class MediaFileExtensions
     {
-        private static readonly Dictionary<string, Quality> FileExtensions = new (StringComparer.OrdinalIgnoreCase)
+        private static readonly Dictionary<string, Quality> FileExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
             // Unknown
             { ".webm", Quality.Unknown },
@@ -65,11 +65,11 @@ namespace NzbDrone.Core.MediaFiles
             { ".m2ts", Quality.Bluray720p },
         };
 
-        public static HashSet<string> Extensions => new (FileExtensions.Keys, StringComparer.OrdinalIgnoreCase);
+        public static HashSet<string> Extensions => new(FileExtensions.Keys, StringComparer.OrdinalIgnoreCase);
 
-        public static HashSet<string> DiskExtensions => new (new[] { ".img", ".iso", ".vob" }, StringComparer.OrdinalIgnoreCase);
+        public static HashSet<string> DiskExtensions => new([".img", ".iso", ".vob"], StringComparer.OrdinalIgnoreCase);
 
-        public static HashSet<string> StreamingExtensions => new (new[] { ".m3u", ".strm" }, StringComparer.OrdinalIgnoreCase);
+        public static HashSet<string> StreamingExtensions => new([".m3u", ".strm"], StringComparer.OrdinalIgnoreCase);
 
         public static Quality GetQualityForExtension(string extension)
         {

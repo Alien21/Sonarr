@@ -1,8 +1,11 @@
 using System;
 using System.IO;
+using Microsoft.AspNetCore.Http;
 using NLog;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
+using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Authentication;
 using NzbDrone.Core.Configuration;
 
 namespace Sonarr.Http.Frontend.Mappers
@@ -23,7 +26,7 @@ namespace Sonarr.Http.Frontend.Mappers
             _configFileProvider = configFileProvider;
         }
 
-        protected override string FolderPath => Path.Combine(_appFolderInfo.StartUpFolder, _configFileProvider.UiFolder);
+        protected override string FolderPath => _appFolderInfo.GetUiFolder();
         protected override string HtmlPath => Path.Combine(FolderPath, "login.html");
 
         protected override string MapPath(string resourceUrl)
@@ -36,12 +39,20 @@ namespace Sonarr.Http.Frontend.Mappers
             return resourceUrl.StartsWith("/login");
         }
 
-        protected override string GetHtmlText()
+        protected override string GetHtmlText(HttpContext context)
         {
-            var html = base.GetHtmlText();
+            var html = base.GetHtmlText(context);
             var theme = _configFileProvider.Theme;
+            var authMethod = _configFileProvider.AuthenticationMethod.ToString().ToLowerInvariant();
+
+            if (_configFileProvider.AuthenticationMethod == AuthenticationType.Oidc &&
+                !_configFileProvider.IsOidcConfigured())
+            {
+                authMethod += " oidc-misconfigured";
+            }
 
             html = html.Replace("_THEME_", theme);
+            html = html.Replace("_AUTH_METHOD_", authMethod);
 
             return html;
         }

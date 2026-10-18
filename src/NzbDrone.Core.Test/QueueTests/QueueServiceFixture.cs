@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using FizzWare.NBuilder;
@@ -6,6 +6,7 @@ using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
+using NzbDrone.Core.Languages;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Queue;
@@ -59,13 +60,9 @@ namespace NzbDrone.Core.Test.QueueTests
 
             var queue = Subject.GetQueue();
 
-            queue.Should().HaveCount(3);
+            queue.Should().HaveCount(1);
 
             queue.All(v => v.Id > 0).Should().BeTrue();
-
-            var distinct = queue.Select(v => v.Id).Distinct().ToArray();
-
-            distinct.Should().HaveCount(3);
         }
 
         [Test]
@@ -77,32 +74,74 @@ namespace NzbDrone.Core.Test.QueueTests
 
             var queue = Subject.GetQueue();
 
-            queue.Should().HaveCount(3);
+            queue.Should().HaveCount(1);
             queue.First().Series.Should().NotBeNull();
             queue.Should().OnlyContain(q => q.Quality.Quality == Quality.Unknown);
         }
 
         [Test]
-        public void should_use_analyzed_episode_file_size_for_episode_queue_items()
+        public void should_sum_analyzed_file_sizes_for_download_queue_item()
         {
             var trackedDownload = _trackedDownloads.First();
             var episodes = trackedDownload.RemoteEpisode.Episodes;
 
-            trackedDownload.DownloadItem.TotalSize = 3400;
+            trackedDownload.DownloadItem.TotalSize = 10000;
             trackedDownload.AnalyzedEpisodeFiles = new Dictionary<int, AnalyzedDownloadFile>
             {
-                { episodes[0].Id, new AnalyzedDownloadFile { Size = 1800 } },
-                { episodes[1].Id, new AnalyzedDownloadFile { Size = 1600 } }
+                { episodes[0].Id, new AnalyzedDownloadFile { Path = "episode1.mkv", Size = 1800 } },
+                { episodes[1].Id, new AnalyzedDownloadFile { Path = "episode2.mkv", Size = 1600 } }
             };
 
             Subject.Handle(new TrackedDownloadRefreshedEvent(_trackedDownloads));
 
             var queue = Subject.GetQueue();
 
-            queue.Should().HaveCount(3);
-            queue.Single(q => q.Episode.Id == episodes[0].Id).Size.Should().Be(1800);
-            queue.Single(q => q.Episode.Id == episodes[1].Id).Size.Should().Be(1600);
-            queue.Single(q => q.Episode.Id == episodes[2].Id).Size.Should().Be(3400);
+            queue.Should().HaveCount(1);
+            queue.Single().Size.Should().Be(3400);
+        }
+
+        [Test]
+        public void should_count_a_file_mapped_to_multiple_episodes_only_once()
+        {
+            var trackedDownload = _trackedDownloads.First();
+            var episodes = trackedDownload.RemoteEpisode.Episodes;
+            trackedDownload.DownloadItem.TotalSize = 3400;
+            trackedDownload.AnalyzedEpisodeFiles = new Dictionary<int, AnalyzedDownloadFile>
+            {
+                { episodes[0].Id, new AnalyzedDownloadFile { Path = "season.mkv", Size = 1800 } },
+                { episodes[1].Id, new AnalyzedDownloadFile { Path = "season.mkv", Size = 1800 } }
+            };
+            Subject.Handle(new TrackedDownloadRefreshedEvent(_trackedDownloads));
+            Subject.GetQueue().Should().ContainSingle().Which.Size.Should().Be(1800);
+        }
+
+        [Test]
+        public void should_preserve_analyzed_metadata_for_a_single_episode_download()
+        {
+            var trackedDownload = _trackedDownloads.First();
+            var episode = trackedDownload.RemoteEpisode.Episodes.First();
+            trackedDownload.RemoteEpisode.Episodes = new List<Episode> { episode };
+            trackedDownload.AnalyzedEpisodeFiles = new Dictionary<int, AnalyzedDownloadFile>
+            {
+                {
+                    episode.Id,
+                    new AnalyzedDownloadFile
+                    {
+                        Path = "episode.mkv",
+                        Size = 1800,
+                        Quality = new QualityModel(Quality.Bluray1080p),
+                        Languages = new List<Language> { Language.Czech, Language.English },
+                        SubtitleLanguages = new List<Language> { Language.Czech }
+                    }
+                }
+            };
+            Subject.Handle(new TrackedDownloadRefreshedEvent(_trackedDownloads));
+            var item = Subject.GetQueue().Should().ContainSingle().Which;
+            item.Episodes.Should().ContainSingle().Which.Id.Should().Be(episode.Id);
+            item.Size.Should().Be(1800);
+            item.Quality.Quality.Should().Be(Quality.Bluray1080p);
+            item.Languages.Should().Equal(Language.Czech, Language.English);
+            item.SubtitleLanguages.Should().Equal(Language.Czech);
         }
     }
 }

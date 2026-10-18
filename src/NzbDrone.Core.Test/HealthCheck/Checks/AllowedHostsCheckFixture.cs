@@ -5,6 +5,7 @@ using NzbDrone.Core.Configuration;
 using NzbDrone.Core.HealthCheck.Checks;
 using NzbDrone.Core.Localization;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.HealthCheck.Checks
 {
@@ -48,6 +49,8 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
             GivenAuthenticationRequired(AuthenticationRequiredType.DisabledForLocalAddresses);
 
             Subject.Check().ShouldBeWarning();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -59,6 +62,19 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
             Subject.Check().ShouldBeOk();
         }
 
+        [TestCase("*")]
+        [TestCase("*, sonarr.local")]
+        [TestCase("sonarr.local; *")]
+        public void should_return_warning_when_allowed_hosts_contains_wildcard(string allowedHosts)
+        {
+            GivenAllowedHosts(allowedHosts);
+            GivenAuthenticationRequired(AuthenticationRequiredType.DisabledForLocalAddresses);
+
+            Subject.Check().ShouldBeWarning();
+
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
         [Test]
         public void should_return_warning_when_allowed_hosts_is_whitespace()
         {
@@ -66,6 +82,8 @@ namespace NzbDrone.Core.Test.HealthCheck.Checks
             GivenAuthenticationRequired(AuthenticationRequiredType.DisabledForLocalAddresses);
 
             Subject.Check().ShouldBeWarning();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
     }
 }

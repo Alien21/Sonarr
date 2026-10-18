@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using FluentValidation.Results;
 using NLog;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.ThingiProvider;
 
@@ -14,6 +15,7 @@ namespace NzbDrone.Core.Indexers
         List<IIndexer> AutomaticSearchEnabled(bool filterBlockedIndexers = true);
         List<IIndexer> InteractiveSearchEnabled(bool filterBlockedIndexers = true);
         IndexerDefinition FindByName(string name);
+        IndexerDefinition ResolveIndexer(int? id, string name);
     }
 
     public class IndexerFactory : ProviderFactory<IIndexer, IndexerDefinition>, IIndexerFactory
@@ -38,6 +40,16 @@ namespace NzbDrone.Core.Indexers
         protected override List<IndexerDefinition> Active()
         {
             return base.Active().Where(c => c.Enable).ToList();
+        }
+
+        public override IEnumerable<IndexerDefinition> GetDefaultDefinitions()
+        {
+            return base.GetDefaultDefinitions().Select(SetDefaultFailDownloads);
+        }
+
+        public override IEnumerable<IndexerDefinition> GetPresetDefinitions(IndexerDefinition providerDefinition)
+        {
+            return base.GetPresetDefinitions(providerDefinition).Select(SetDefaultFailDownloads);
         }
 
         public override void SetProviderCharacteristics(IIndexer provider, IndexerDefinition definition)
@@ -90,6 +102,37 @@ namespace NzbDrone.Core.Indexers
             return _indexerRepository.FindByName(name);
         }
 
+        public IndexerDefinition ResolveIndexer(int? id, string name)
+        {
+            var all = All();
+            var indexerByName = name.IsNullOrWhiteSpace() ? null : all.FirstOrDefault(c => c.Name.EqualsIgnoreCase(name));
+            var indexerById = id is > 0 ? all.FirstOrDefault(c => c.Id == id.Value) : null;
+
+            if (id is > 0 && indexerById == null)
+            {
+                throw new ResolveIndexerException("Indexer with ID '{0}' could not be found", id.Value);
+            }
+
+            if (name.IsNotNullOrWhiteSpace() && indexerByName == null)
+            {
+                _logger.Warn("Indexer with name '{0}' could not be found", name);
+
+                return null;
+            }
+
+            if (indexerByName == null && indexerById == null)
+            {
+                return null;
+            }
+
+            if (indexerByName != null && indexerById != null && indexerByName.Id != indexerById.Id)
+            {
+                throw new ResolveIndexerException("Indexer with name '{0}' does not match indexer with ID '{1}'", name, id.Value);
+            }
+
+            return indexerById ?? indexerByName;
+        }
+
         private IEnumerable<IIndexer> FilterBlockedIndexers(IEnumerable<IIndexer> indexers)
         {
             var blockedIndexers = _indexerStatusService.GetBlockedProviders().ToDictionary(v => v.ProviderId, v => v);
@@ -125,6 +168,15 @@ namespace NzbDrone.Core.Indexers
             }
 
             return result;
+        }
+
+        private IndexerDefinition SetDefaultFailDownloads(IndexerDefinition definition)
+        {
+            var provider = _providers.First(v => v.GetType().Name == definition.Implementation);
+
+            ((IIndexerSettings)definition.Settings).FailDownloads = [.. provider.DefaultFailDownloads.Select(f => (int)f)];
+
+            return definition;
         }
     }
 }

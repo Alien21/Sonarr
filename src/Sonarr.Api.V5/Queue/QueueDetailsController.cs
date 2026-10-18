@@ -1,0 +1,80 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
+using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Datastore.Events;
+using NzbDrone.Core.Download.Pending;
+using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.Queue;
+using NzbDrone.SignalR;
+using Sonarr.Api.V5.Series;
+using Sonarr.Http;
+using Sonarr.Http.REST;
+
+namespace Sonarr.Api.V5.Queue
+{
+    [V5ApiController("queue/details")]
+    public class QueueDetailsController : RestControllerWithSignalR<QueueResource, NzbDrone.Core.Queue.Queue>,
+                               IHandle<QueueUpdatedEvent>, IHandle<PendingReleasesUpdatedEvent>
+    {
+        private readonly IQueueService _queueService;
+        private readonly IPendingReleaseService _pendingReleaseService;
+        private readonly ISeriesResourceService _seriesResourceService;
+
+        public QueueDetailsController(IBroadcastSignalRMessage broadcastSignalRMessage, IQueueService queueService, IPendingReleaseService pendingReleaseService, ISeriesResourceService seriesResourceService)
+            : base(broadcastSignalRMessage)
+        {
+            _queueService = queueService;
+            _pendingReleaseService = pendingReleaseService;
+            _seriesResourceService = seriesResourceService;
+        }
+
+        [NonAction]
+        public override Results<Ok<QueueResource>, NotFound> GetResourceByIdWithErrorHandler(int id)
+        {
+            return base.GetResourceByIdWithErrorHandler(id);
+        }
+
+        protected override QueueResource GetResourceById(int id)
+        {
+            throw new NotImplementedException();
+        }
+
+        [HttpGet]
+        [Produces("application/json")]
+        public Ok<List<QueueResource>> GetQueue(int? seriesId, [FromQuery]List<int> episodeIds, [FromQuery] QueueSubresource[]? includeSubresources = null)
+        {
+            var queue = _queueService.GetQueue();
+            var pending = _pendingReleaseService.GetPendingQueue();
+            var fullQueue = queue.Concat(pending);
+            var includeSeries = includeSubresources.Contains(QueueSubresource.Series);
+            var includeEpisodes = includeSubresources.Contains(QueueSubresource.Episodes);
+
+            if (seriesId.HasValue)
+            {
+                return TypedResults.Ok(fullQueue.Where(q => q.Series?.Id == seriesId).ToResource(includeSeries, includeEpisodes, _seriesResourceService));
+            }
+
+            if (episodeIds.Any())
+            {
+                return TypedResults.Ok(fullQueue.Where(q => q.Episodes.Any() &&
+                                            episodeIds.IntersectBy(e => e, q.Episodes, e => e.Id, null).Any())
+                    .ToResource(includeSeries, includeEpisodes, _seriesResourceService));
+            }
+
+            return TypedResults.Ok(fullQueue.ToResource(includeSeries, includeEpisodes, _seriesResourceService));
+        }
+
+        [NonAction]
+        public void Handle(QueueUpdatedEvent message)
+        {
+            BroadcastResourceChange(ModelAction.Sync);
+        }
+
+        [NonAction]
+        public void Handle(PendingReleasesUpdatedEvent message)
+        {
+            BroadcastResourceChange(ModelAction.Sync);
+        }
+    }
+}

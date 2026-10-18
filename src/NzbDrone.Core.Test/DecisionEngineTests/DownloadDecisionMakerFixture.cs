@@ -45,15 +45,15 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
 
             _failDelayed1 = new Mock<IDownloadDecisionEngineSpecification>();
 
-            _pass1.Setup(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null)).Returns(DownloadSpecDecision.Accept);
-            _pass2.Setup(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null)).Returns(DownloadSpecDecision.Accept);
-            _pass3.Setup(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null)).Returns(DownloadSpecDecision.Accept);
+            _pass1.Setup(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>())).Returns(DownloadSpecDecision.Accept);
+            _pass2.Setup(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>())).Returns(DownloadSpecDecision.Accept);
+            _pass3.Setup(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>())).Returns(DownloadSpecDecision.Accept);
 
-            _fail1.Setup(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null)).Returns(DownloadSpecDecision.Reject(DownloadRejectionReason.Unknown, "fail1"));
-            _fail2.Setup(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null)).Returns(DownloadSpecDecision.Reject(DownloadRejectionReason.Unknown, "fail2"));
-            _fail3.Setup(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null)).Returns(DownloadSpecDecision.Reject(DownloadRejectionReason.Unknown, "fail3"));
+            _fail1.Setup(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>())).Returns(DownloadSpecDecision.Reject(DownloadRejectionReason.Unknown, "fail1"));
+            _fail2.Setup(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>())).Returns(DownloadSpecDecision.Reject(DownloadRejectionReason.Unknown, "fail2"));
+            _fail3.Setup(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>())).Returns(DownloadSpecDecision.Reject(DownloadRejectionReason.Unknown, "fail3"));
 
-            _failDelayed1.Setup(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null)).Returns(DownloadSpecDecision.Reject(DownloadRejectionReason.MinimumAgeDelay, "failDelayed1"));
+            _failDelayed1.Setup(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>())).Returns(DownloadSpecDecision.Reject(DownloadRejectionReason.MinimumAgeDelay, "failDelayed1"));
             _failDelayed1.SetupGet(c => c.Priority).Returns(SpecificationPriority.Disk);
 
             _reports = new List<ReleaseInfo> { new ReleaseInfo { Title = "The.Office.S03E115.DVDRip.XviD-OSiTV" } };
@@ -80,12 +80,12 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
 
             Subject.GetRssDecision(_reports).ToList();
 
-            _fail1.Verify(c => c.IsSatisfiedBy(_remoteEpisode, null), Times.Once());
-            _fail2.Verify(c => c.IsSatisfiedBy(_remoteEpisode, null), Times.Once());
-            _fail3.Verify(c => c.IsSatisfiedBy(_remoteEpisode, null), Times.Once());
-            _pass1.Verify(c => c.IsSatisfiedBy(_remoteEpisode, null), Times.Once());
-            _pass2.Verify(c => c.IsSatisfiedBy(_remoteEpisode, null), Times.Once());
-            _pass3.Verify(c => c.IsSatisfiedBy(_remoteEpisode, null), Times.Once());
+            _fail1.Verify(c => c.IsSatisfiedBy(_remoteEpisode, It.IsAny<ReleaseDecisionInformation>()), Times.Once());
+            _fail2.Verify(c => c.IsSatisfiedBy(_remoteEpisode, It.IsAny<ReleaseDecisionInformation>()), Times.Once());
+            _fail3.Verify(c => c.IsSatisfiedBy(_remoteEpisode, It.IsAny<ReleaseDecisionInformation>()), Times.Once());
+            _pass1.Verify(c => c.IsSatisfiedBy(_remoteEpisode, It.IsAny<ReleaseDecisionInformation>()), Times.Once());
+            _pass2.Verify(c => c.IsSatisfiedBy(_remoteEpisode, It.IsAny<ReleaseDecisionInformation>()), Times.Once());
+            _pass3.Verify(c => c.IsSatisfiedBy(_remoteEpisode, It.IsAny<ReleaseDecisionInformation>()), Times.Once());
         }
 
         [Test]
@@ -94,7 +94,7 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
             GivenSpecifications(_pass1, _failDelayed1);
 
             Subject.GetRssDecision(_reports).ToList();
-            _failDelayed1.Verify(c => c.IsSatisfiedBy(_remoteEpisode, null), Times.Once());
+            _failDelayed1.Verify(c => c.IsSatisfiedBy(_remoteEpisode, It.IsAny<ReleaseDecisionInformation>()), Times.Once());
         }
 
         [Test]
@@ -104,7 +104,7 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
 
             Subject.GetRssDecision(_reports).ToList();
 
-            _failDelayed1.Verify(c => c.IsSatisfiedBy(_remoteEpisode, null), Times.Never());
+            _failDelayed1.Verify(c => c.IsSatisfiedBy(_remoteEpisode, It.IsAny<ReleaseDecisionInformation>()), Times.Never());
         }
 
         [Test]
@@ -150,15 +150,29 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         public void should_not_attempt_to_map_episode_if_not_parsable()
         {
             GivenSpecifications(_pass1, _pass2, _pass3);
-            _reports[0].Title = "Not parsable";
+
+            // Stripping the metadata leaves brackets rather than a title, so neither parser
+            // recovers anything to map.
+            _reports[0].Title = "[Not][parsable][1080p][x265(10bit)]";
 
             Subject.GetRssDecision(_reports).ToList();
 
             Mocker.GetMock<IParsingService>().Verify(c => c.Map(It.IsAny<ParsedEpisodeInfo>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<SearchCriteriaBase>()), Times.Never());
 
-            _pass1.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null), Times.Never());
-            _pass2.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null), Times.Never());
-            _pass3.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null), Times.Never());
+            _pass1.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>()), Times.Never());
+            _pass2.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>()), Times.Never());
+            _pass3.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>()), Times.Never());
+        }
+
+        [Test]
+        public void should_map_a_title_the_regexes_cannot_parse()
+        {
+            GivenSpecifications(_pass1, _pass2, _pass3);
+            _reports[0].Title = "Not parsable";
+
+            Subject.GetRssDecision(_reports).ToList();
+
+            Mocker.GetMock<IParsingService>().Verify(c => c.Map(It.IsAny<ParsedEpisodeInfo>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<SearchCriteriaBase>()), Times.Once());
         }
 
         [Test]
@@ -171,9 +185,9 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
 
             Mocker.GetMock<IParsingService>().Verify(c => c.Map(It.IsAny<ParsedEpisodeInfo>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<SearchCriteriaBase>()), Times.Never());
 
-            _pass1.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null), Times.Never());
-            _pass2.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null), Times.Never());
-            _pass3.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null), Times.Never());
+            _pass1.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>()), Times.Never());
+            _pass2.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>()), Times.Never());
+            _pass3.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>()), Times.Never());
 
             results.Should().BeEmpty();
         }
@@ -188,9 +202,9 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
 
             Mocker.GetMock<IParsingService>().Verify(c => c.Map(It.IsAny<ParsedEpisodeInfo>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<SearchCriteriaBase>()), Times.Never());
 
-            _pass1.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null), Times.Never());
-            _pass2.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null), Times.Never());
-            _pass3.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null), Times.Never());
+            _pass1.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>()), Times.Never());
+            _pass2.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>()), Times.Never());
+            _pass3.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>()), Times.Never());
         }
 
         [Test]
@@ -202,9 +216,9 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
 
             Subject.GetRssDecision(_reports);
 
-            _pass1.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null), Times.Never());
-            _pass2.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null), Times.Never());
-            _pass3.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), null), Times.Never());
+            _pass1.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>()), Times.Never());
+            _pass2.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>()), Times.Never());
+            _pass3.Verify(c => c.IsSatisfiedBy(It.IsAny<RemoteEpisode>(), It.IsAny<ReleaseDecisionInformation>()), Times.Never());
         }
 
         [Test]

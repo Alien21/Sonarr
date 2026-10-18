@@ -1,32 +1,20 @@
-import React, { useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import AppState from 'App/State/AppState';
-import { ReleaseProfilesAppState } from 'App/State/SettingsAppState';
-import Card from 'Components/Card';
-import FieldSet from 'Components/FieldSet';
-import Icon from 'Components/Icon';
+import React from 'react';
 import PageSectionContent from 'Components/Page/PageSectionContent';
+import AddCard from 'Components/SettingsCard/AddCard';
+import settingsCardStyles from 'Components/SettingsCard/SettingsCard.module.css';
 import useModalOpenState from 'Helpers/Hooks/useModalOpenState';
-import { icons } from 'Helpers/Props';
-import { fetchIndexers } from 'Store/Actions/Settings/indexers';
-import { fetchReleaseProfiles } from 'Store/Actions/Settings/releaseProfiles';
-import createClientSideCollectionSelector from 'Store/Selectors/createClientSideCollectionSelector';
-import createTagsSelector from 'Store/Selectors/createTagsSelector';
+import { useIndexersData } from 'Settings/Indexers/useIndexers';
+import { useTagList } from 'Tags/useTags';
 import translate from 'Utilities/String/translate';
 import EditReleaseProfileModal from './EditReleaseProfileModal';
 import ReleaseProfileItem from './ReleaseProfileItem';
-import styles from './ReleaseProfiles.css';
+import { useReleaseProfiles } from './useReleaseProfiles';
 
 function ReleaseProfiles() {
-  const { items, isFetching, isPopulated, error }: ReleaseProfilesAppState =
-    useSelector(createClientSideCollectionSelector('settings.releaseProfiles'));
+  const { data, isFetching, isFetched, error } = useReleaseProfiles();
 
-  const tagList = useSelector(createTagsSelector());
-  const indexerList = useSelector(
-    (state: AppState) => state.settings.indexers.items
-  );
-
-  const dispatch = useDispatch();
+  const tagList = useTagList();
+  const indexerList = useIndexersData();
 
   const [
     isAddReleaseProfileModalOpen,
@@ -34,47 +22,36 @@ function ReleaseProfiles() {
     setAddReleaseProfileModalClosed,
   ] = useModalOpenState(false);
 
-  useEffect(() => {
-    dispatch(fetchReleaseProfiles());
-    dispatch(fetchIndexers());
-  }, [dispatch]);
-
   return (
-    <FieldSet legend={translate('ReleaseProfiles')}>
-      <PageSectionContent
-        errorMessage={translate('ReleaseProfilesLoadError')}
-        isFetching={isFetching}
-        isPopulated={isPopulated}
-        error={error}
-      >
-        <div className={styles.releaseProfiles}>
-          <Card
-            className={styles.addReleaseProfile}
-            onPress={setAddReleaseProfileModalOpen}
-          >
-            <div className={styles.center}>
-              <Icon name={icons.ADD} size={45} />
-            </div>
-          </Card>
+    <PageSectionContent
+      errorMessage={translate('ReleaseProfilesLoadError')}
+      isFetching={isFetching}
+      isPopulated={isFetched}
+      error={error}
+    >
+      <div className={settingsCardStyles.grid}>
+        {data.map((item) => {
+          return (
+            <ReleaseProfileItem
+              key={item.id}
+              tagList={tagList}
+              indexerList={indexerList}
+              {...item}
+            />
+          );
+        })}
 
-          {items.map((item) => {
-            return (
-              <ReleaseProfileItem
-                key={item.id}
-                tagList={tagList}
-                indexerList={indexerList}
-                {...item}
-              />
-            );
-          })}
-        </div>
-
-        <EditReleaseProfileModal
-          isOpen={isAddReleaseProfileModalOpen}
-          onModalClose={setAddReleaseProfileModalClosed}
+        <AddCard
+          label={translate('AddReleaseProfile')}
+          onPress={setAddReleaseProfileModalOpen}
         />
-      </PageSectionContent>
-    </FieldSet>
+      </div>
+
+      <EditReleaseProfileModal
+        isOpen={isAddReleaseProfileModalOpen}
+        onModalClose={setAddReleaseProfileModalClosed}
+      />
+    </PageSectionContent>
   );
 }
 

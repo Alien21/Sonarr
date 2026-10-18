@@ -1,9 +1,10 @@
+using System;
 using System.IO;
 using NLog;
+using NzbDrone.Common.Cache;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Configuration;
-using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser.Model;
 
 namespace NzbDrone.Core.DecisionEngine.Specifications
@@ -14,19 +15,23 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
         private readonly IDiskProvider _diskProvider;
         private readonly Logger _logger;
 
-        public FreeSpaceSpecification(IConfigService configService, IDiskProvider diskProvider, Logger logger)
+        private readonly ICached<long?> _cache;
+
+        public FreeSpaceSpecification(IConfigService configService, IDiskProvider diskProvider, ICacheManager cacheManager, Logger logger)
         {
             _configService = configService;
             _diskProvider = diskProvider;
             _logger = logger;
+
+            _cache = cacheManager.GetCache<long?>(GetType());
         }
 
         public SpecificationPriority Priority => SpecificationPriority.Disk;
         public RejectionType Type => RejectionType.Permanent;
 
-        public DownloadSpecDecision IsSatisfiedBy(RemoteEpisode subject, SearchCriteriaBase searchCriteria)
+        public DownloadSpecDecision IsSatisfiedBy(RemoteEpisode subject, ReleaseDecisionInformation information)
         {
-            if (_configService.SkipFreeSpaceCheckWhenImporting)
+            if (_configService.SkipFreeSpaceCheckWhenGrabbing)
             {
                 _logger.Debug("Skipping free space check");
                 return DownloadSpecDecision.Accept();
@@ -34,16 +39,7 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
 
             var size = subject.Release.Size;
             var path = subject.Series.Path;
-            long? freeSpace = null;
-
-            try
-            {
-                freeSpace = _diskProvider.GetAvailableSpace(path);
-            }
-            catch (DirectoryNotFoundException)
-            {
-                // Ignore so it'll be skipped in the following checks
-            }
+            var freeSpace = _cache.Get(path, () => GetFreeSpaceForPath(path), TimeSpan.FromSeconds(5));
 
             if (!freeSpace.HasValue)
             {
@@ -72,6 +68,20 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
             }
 
             return DownloadSpecDecision.Accept();
+        }
+
+        private long? GetFreeSpaceForPath(string path)
+        {
+            try
+            {
+                return _diskProvider.GetAvailableSpace(path);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                // Ignore so it'll be skipped in the following checks
+            }
+
+            return null;
         }
     }
 }

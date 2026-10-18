@@ -5,15 +5,13 @@ import ReleaseType from 'InteractiveImport/ReleaseType';
 import Language from 'Language/Language';
 import { QualityModel } from 'Quality/Quality';
 import Series from 'Series/Series';
-import CustomFormat from 'typings/CustomFormat';
+import { CustomFormat } from 'Settings/CustomFormats/CustomFormats/useCustomFormats';
 import Rejection from 'typings/Rejection';
 
 export type ExistingEpisodeFile = Pick<
   EpisodeFile,
-  'id' | 'relativePath' | 'quality' | 'languages' | 'size'
-> & {
-  subtitleLanguages?: Language[];
-};
+  'id' | 'relativePath' | 'size' | 'quality' | 'languages'
+> & { subtitleLanguages?: Language[] };
 
 export interface InteractiveImportCommandOptions {
   path: string;
@@ -50,6 +48,7 @@ interface InteractiveImport extends ModelBase {
   releaseType: ReleaseType;
   rejections: Rejection[];
   episodeFileId?: number;
+  downloadId?: string;
 }
 
 export default InteractiveImport;

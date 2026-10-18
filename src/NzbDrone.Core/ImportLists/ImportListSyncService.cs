@@ -31,16 +31,16 @@ namespace NzbDrone.Core.ImportLists
         private readonly Logger _logger;
 
         public ImportListSyncService(IImportListFactory importListFactory,
-                              IImportListStatusService importListStatusService,
-                              IImportListExclusionService importListExclusionService,
-                              IImportListItemService importListItemService,
-                              IFetchAndParseImportList listFetcherAndParser,
-                              ISearchForNewSeries seriesSearchService,
-                              ISeriesService seriesService,
-                              IAddSeriesService addSeriesService,
-                              IConfigService configService,
-                              ITaskManager taskManager,
-                              Logger logger)
+            IImportListStatusService importListStatusService,
+            IImportListExclusionService importListExclusionService,
+            IImportListItemService importListItemService,
+            IFetchAndParseImportList listFetcherAndParser,
+            ISearchForNewSeries seriesSearchService,
+            ISeriesService seriesService,
+            IAddSeriesService addSeriesService,
+            IConfigService configService,
+            ITaskManager taskManager,
+            Logger logger)
         {
             _importListFactory = importListFactory;
             _importListStatusService = importListStatusService;
@@ -99,18 +99,22 @@ namespace NzbDrone.Core.ImportLists
 
             ProcessListItems(listItems);
 
+            RemoveTagsFromSeriesNotOnLists();
+
             TryCleanLibrary();
         }
 
         private void SyncList(ImportListDefinition definition)
         {
-            _logger.ProgressInfo(string.Format("Starting Import List Refresh for List {0}", definition.Name));
+            _logger.ProgressInfo("Starting Import List Refresh for List {0}", definition.Name);
 
             var result = _listFetcherAndParser.FetchSingleList(definition);
 
             var listItems = result.Series.ToList();
 
             ProcessListItems(listItems);
+
+            RemoveTagsFromSeriesNotOnLists();
 
             TryCleanLibrary();
         }
@@ -132,7 +136,10 @@ namespace NzbDrone.Core.ImportLists
 
             var listExclusions = _importListExclusionService.All();
             var importLists = _importListFactory.All();
-            var existingTvdbIds = _seriesService.AllSeriesTvdbIds();
+
+            var existingSeriesIds = _seriesService.AllSeriesTvdbIds();
+
+            var existingSeriesToUpdate = new Dictionary<int, HashSet<int>>();
 
             foreach (var item in items)
             {
@@ -150,7 +157,7 @@ namespace NzbDrone.Core.ImportLists
                 // Map by IMDb ID if we have it
                 if (item.TvdbId <= 0 && item.ImdbId.IsNotNullOrWhiteSpace())
                 {
-                    var mappedSeries = _seriesSearchService.SearchForNewSeriesByImdbId(item.ImdbId)
+                    var mappedSeries = _seriesSearchService.SearchForNewSeriesByImdbId(item.ImdbId, importList.Language)
                         .FirstOrDefault();
 
                     if (mappedSeries != null)
@@ -163,7 +170,7 @@ namespace NzbDrone.Core.ImportLists
                 // Map by TMDb ID if we have it
                 if (item.TvdbId <= 0 && item.TmdbId > 0)
                 {
-                    var mappedSeries = _seriesSearchService.SearchForNewSeriesByTmdbId(item.TmdbId)
+                    var mappedSeries = _seriesSearchService.SearchForNewSeriesByTmdbId(item.TmdbId, importList.Language)
                         .FirstOrDefault();
 
                     if (mappedSeries != null)
@@ -176,7 +183,7 @@ namespace NzbDrone.Core.ImportLists
                 // Map by AniList ID if we have it
                 if (item.TvdbId <= 0 && item.AniListId > 0)
                 {
-                    var mappedSeries = _seriesSearchService.SearchForNewSeriesByAniListId(item.AniListId)
+                    var mappedSeries = _seriesSearchService.SearchForNewSeriesByAniListId(item.AniListId, importList.Language)
                         .FirstOrDefault();
 
                     if (mappedSeries == null)
@@ -193,7 +200,7 @@ namespace NzbDrone.Core.ImportLists
                 // Map by MyAniList ID if we have it
                 if (item.TvdbId <= 0 && item.MalId > 0)
                 {
-                    var mappedSeries = _seriesSearchService.SearchForNewSeriesByMyAnimeListId(item.MalId)
+                    var mappedSeries = _seriesSearchService.SearchForNewSeriesByMyAnimeListId(item.MalId, importList.Language)
                         .FirstOrDefault();
 
                     if (mappedSeries == null)
@@ -214,7 +221,7 @@ namespace NzbDrone.Core.ImportLists
                 }
 
                 // Check to see if series excluded
-                var excludedSeries = listExclusions.Where(s => s.TvdbId == item.TvdbId).SingleOrDefault();
+                var excludedSeries = listExclusions.SingleOrDefault(s => s.TvdbId == item.TvdbId);
 
                 if (excludedSeries != null)
                 {
@@ -222,16 +229,24 @@ namespace NzbDrone.Core.ImportLists
                     continue;
                 }
 
-                // Break if Series Exists in DB
-                if (existingTvdbIds.Any(x => x == item.TvdbId))
+                // Break if Series Exists in DB, if it exists, update the tags with the tags in the import list and move to the next item
+                var existingSeriesId = existingSeriesIds.FirstOrDefault(x => x.Value == item.TvdbId).Key;
+
+                if (existingSeriesId > 0)
                 {
+                    QueueTagsOnPendingSeries(importList, existingSeriesToUpdate, existingSeriesId);
+
                     _logger.Debug("{0} [{1}] Rejected, series exists in database", item.TvdbId, item.Title);
                     continue;
                 }
 
+                // search the existing seriesToAdd queue to see if we already have the series queued to insert
+                var pendingSeries = seriesToAdd.FirstOrDefault(s => s.TvdbId == item.TvdbId);
+
                 // Append Series if not already in DB or already on add list
-                if (seriesToAdd.All(s => s.TvdbId != item.TvdbId))
+                if (pendingSeries == null)
                 {
+                    // Add the series to `seriesToAdd`
                     var monitored = importList.ShouldMonitor != MonitorTypes.None;
 
                     seriesToAdd.Add(new Series
@@ -244,6 +259,8 @@ namespace NzbDrone.Core.ImportLists
                         RootFolderPath = importList.RootFolderPath,
                         QualityProfileId = importList.QualityProfileId,
                         SeriesType = importList.SeriesType,
+                        SeasonType = SeasonType.Official,
+                        Language = importList.Language,
                         SeasonFolder = importList.SeasonFolder,
                         Seasons = item.Seasons,
                         Tags = importList.Tags,
@@ -256,13 +273,148 @@ namespace NzbDrone.Core.ImportLists
                         }
                     });
                 }
+                else
+                {
+                    // Add the tags for the current import list to the existing queued series.
+                    foreach (var tag in importList.Tags)
+                    {
+                        pendingSeries.Tags.Add(tag);
+                    }
+                }
             }
 
             _addSeriesService.AddSeries(seriesToAdd, true);
+            UpdateTagsOnPendingSeries(existingSeriesToUpdate);
 
-            var message = string.Format("Import List Sync Completed. Items found: {0}, Series added: {1}", items.Count, seriesToAdd.Count);
+            _logger.ProgressInfo("Import List Sync Completed. Items found: {0}, Series added: {1}", items.Count, seriesToAdd.Count);
+        }
 
-            _logger.ProgressInfo(message);
+        private void QueueTagsOnPendingSeries(ImportListDefinition importList, Dictionary<int, HashSet<int>> existingSeriesToUpdate, int existingSeriesId)
+        {
+            if (importList.TagExisting == TagExistingType.None || importList.Tags.Count == 0)
+            {
+                return;
+            }
+
+            if (existingSeriesToUpdate.TryGetValue(existingSeriesId, out var tagsToAdd))
+            {
+                foreach (var importListTag in importList.Tags)
+                {
+                    tagsToAdd.Add(importListTag);
+                }
+            }
+            else
+            {
+                existingSeriesToUpdate.Add(existingSeriesId, new HashSet<int>(importList.Tags));
+            }
+        }
+
+        private void UpdateTagsOnPendingSeries(Dictionary<int, HashSet<int>> existingSeriesToUpdate)
+        {
+            if (existingSeriesToUpdate.Count == 0)
+            {
+                return;
+            }
+
+            var possibleSeriesToUpdate = _seriesService.GetSeries(existingSeriesToUpdate.Keys);
+            var seriesWithUpdatedTags = new List<Series>();
+
+            foreach (var series in possibleSeriesToUpdate)
+            {
+                var tags = existingSeriesToUpdate[series.Id];
+                var currentTagsCount = series.Tags.Count;
+
+                foreach (var tag in tags)
+                {
+                    series.Tags.Add(tag);
+                }
+
+                if (currentTagsCount != series.Tags.Count)
+                {
+                    _logger.Debug("{0} [{1}] tagged existing series", series.TvdbId, series.Title);
+                    seriesWithUpdatedTags.Add(series);
+                }
+            }
+
+            _seriesService.UpdateTags(seriesWithUpdatedTags);
+        }
+
+        private void RemoveTagsFromSeriesNotOnLists()
+        {
+            var importLists = _importListFactory.All().Where(l => l.EnableAutomaticAdd).ToList();
+
+            var tagsToSync = importLists
+                .Where(l => l.TagExisting == TagExistingType.Sync)
+                .SelectMany(l => l.Tags)
+                .ToHashSet();
+
+            if (tagsToSync.Empty())
+            {
+                return;
+            }
+
+            var listsByTag = tagsToSync.ToDictionary(t => t, t => importLists.Where(l => l.Tags.Contains(t)).ToList());
+
+            tagsToSync.RemoveWhere(tag =>
+            {
+                var unsyncedList = listsByTag[tag].FirstOrDefault(l => !HasSyncedSuccessfully(l.Id));
+
+                if (unsyncedList != null)
+                {
+                    _logger.Debug("Not removing tag {0}, import list {1} has not synced successfully", tag, unsyncedList.Name);
+                    return true;
+                }
+
+                return false;
+            });
+
+            if (tagsToSync.Empty())
+            {
+                return;
+            }
+
+            var itemsByList = _importListItemService.GetAllForLists(importLists.Select(l => l.Id).ToList())
+                .GroupBy(i => i.ImportListId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var seriesWithUpdatedTags = new List<Series>();
+
+            foreach (var series in _seriesService.GetAllSeries())
+            {
+                var tagsToRemove = series.Tags
+                    .Where(tag => tagsToSync.Contains(tag) &&
+                                  !listsByTag[tag].Any(l => itemsByList.TryGetValue(l.Id, out var items) && IsSeriesOnList(series, items)))
+                    .ToList();
+
+                if (tagsToRemove.Empty())
+                {
+                    continue;
+                }
+
+                series.Tags.ExceptWith(tagsToRemove);
+
+                _logger.Debug("{0} [{1}] no longer on import lists, removed tags", series.TvdbId, series.Title);
+                seriesWithUpdatedTags.Add(series);
+            }
+
+            _seriesService.UpdateTags(seriesWithUpdatedTags);
+        }
+
+        private bool HasSyncedSuccessfully(int importListId)
+        {
+            var status = _importListStatusService.GetListStatus(importListId);
+
+            return !status.DisabledTill.HasValue && status.LastInfoSync.HasValue;
+        }
+
+        private static bool IsSeriesOnList(Series series, IEnumerable<ImportListItemInfo> listItems)
+        {
+            return listItems.Any(l =>
+                l.TvdbId == series.TvdbId ||
+                (l.ImdbId.IsNotNullOrWhiteSpace() && series.ImdbId.IsNotNullOrWhiteSpace() && l.ImdbId == series.ImdbId) ||
+                l.TmdbId == series.TmdbId ||
+                series.MalIds.Contains(l.MalId) ||
+                series.AniListIds.Contains(l.AniListId));
         }
 
         public void Execute(ImportListSyncCommand message)
@@ -303,14 +455,7 @@ namespace NzbDrone.Core.ImportLists
 
             foreach (var series in seriesInLibrary)
             {
-                var seriesExists = allListItems.Where(l =>
-                    l.TvdbId == series.TvdbId ||
-                    (l.ImdbId.IsNotNullOrWhiteSpace() && series.ImdbId.IsNotNullOrWhiteSpace() && l.ImdbId == series.ImdbId) ||
-                    l.TmdbId == series.TmdbId ||
-                    series.MalIds.Contains(l.MalId) ||
-                    series.AniListIds.Contains(l.AniListId)).ToList();
-
-                if (!seriesExists.Any())
+                if (!IsSeriesOnList(series, allListItems))
                 {
                     switch (_configService.ListSyncLevel)
                     {
@@ -333,7 +478,7 @@ namespace NzbDrone.Core.ImportLists
                 }
             }
 
-            _seriesService.UpdateSeries(seriesToUpdate, true);
+            _seriesService.UpdateSeries(seriesToUpdate, false);
             _importListStatusService.MarkListsAsCleaned();
         }
 

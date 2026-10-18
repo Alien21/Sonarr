@@ -6,7 +6,7 @@ import React, {
   useCallback,
 } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import styles from './Link.css';
+import styles from './Link.module.css';
 
 export type LinkProps<C extends ElementType = 'button'> =
   ComponentPropsWithoutRef<C> & {
@@ -67,7 +67,7 @@ export default function Link<C extends ElementType = 'button'>({
 
     return (
       <RouterLink
-        to={`${window.Sonarr.urlBase}/${to.replace(/^\//, '')}`}
+        to={to}
         target={target}
         className={linkClass}
         onClick={onClick}

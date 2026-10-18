@@ -9,6 +9,7 @@ using Sonarr.Api.V3.CustomFormats;
 using Sonarr.Api.V3.Episodes;
 using Sonarr.Api.V3.Series;
 using Sonarr.Http;
+using Sonarr.Http.REST;
 
 namespace Sonarr.Api.V3.ManualImport
 {
@@ -29,7 +30,7 @@ namespace Sonarr.Api.V3.ManualImport
         [Produces("application/json")]
         public List<ManualImportResource> GetMediaFiles(string folder, string downloadId, int? seriesId, int? seasonNumber, bool filterExistingFiles = true)
         {
-            if (seriesId.HasValue)
+            if (seriesId.HasValue && downloadId.IsNullOrWhiteSpace())
             {
                 return _manualImportService.GetMediaFiles(seriesId.Value, seasonNumber).ToResource(_seriesResourceService).Select(AddQualityWeight).ToList();
             }
@@ -41,6 +42,11 @@ namespace Sonarr.Api.V3.ManualImport
         [Consumes("application/json")]
         public object ReprocessItems([FromBody] List<ManualImportReprocessResource> items)
         {
+            if (items is { Count: 0 })
+            {
+                throw new BadRequestException("items must be provided");
+            }
+
             foreach (var item in items)
             {
                 var processedItem = _manualImportService.ReprocessItem(item.Path, item.DownloadId, item.SeriesId, item.SeasonNumber, item.EpisodeIds ?? new List<int>(), item.ReleaseGroup, item.Quality, item.QualityManuallySelected == true, item.Languages, item.IndexerFlags, item.ReleaseType);
@@ -71,7 +77,7 @@ namespace Sonarr.Api.V3.ManualImport
                     item.Quality = processedItem.Quality;
                 }
 
-                if (item.ReleaseGroup.IsNotNullOrWhiteSpace())
+                if (item.ReleaseGroup.IsNullOrWhiteSpace())
                 {
                     item.ReleaseGroup = processedItem.ReleaseGroup;
                 }

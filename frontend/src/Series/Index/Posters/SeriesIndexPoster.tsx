@@ -1,28 +1,29 @@
 import classNames from 'classnames';
 import React, { useCallback, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { REFRESH_SERIES, SERIES_SEARCH } from 'Commands/commandNames';
-import Label from 'Components/Label';
+import CommandNames from 'Commands/CommandNames';
+import { useExecuteCommand } from 'Commands/useCommands';
 import IconButton from 'Components/Link/IconButton';
 import Link from 'Components/Link/Link';
 import SpinnerIconButton from 'Components/Link/SpinnerIconButton';
-import TagListConnector from 'Components/TagListConnector';
 import { icons } from 'Helpers/Props';
 import DeleteSeriesModal from 'Series/Delete/DeleteSeriesModal';
 import EditSeriesModal from 'Series/Edit/EditSeriesModal';
 import SeriesIndexProgressBar from 'Series/Index/ProgressBar/SeriesIndexProgressBar';
 import SeriesIndexPosterSelect from 'Series/Index/Select/SeriesIndexPosterSelect';
-import { Statistics } from 'Series/Series';
+import SeriesIndexTags from 'Series/Index/SeriesIndexTags';
+import { SeriesStatus, Statistics } from 'Series/Series';
+import {
+  ShowStatusMode,
+  useSeriesPosterOptions,
+} from 'Series/seriesOptionsStore';
 import SeriesPoster from 'Series/SeriesPoster';
-import { executeCommand } from 'Store/Actions/commandActions';
-import createUISettingsSelector from 'Store/Selectors/createUISettingsSelector';
+import { useUiSettingsValues } from 'Settings/UI/useUiSettings';
 import formatDateTime from 'Utilities/Date/formatDateTime';
 import getRelativeDate from 'Utilities/Date/getRelativeDate';
 import translate from 'Utilities/String/translate';
-import createSeriesIndexItemSelector from '../createSeriesIndexItemSelector';
-import selectPosterOptions from './selectPosterOptions';
+import useSeriesIndexItem from '../useSeriesIndexItem';
 import SeriesIndexPosterInfo from './SeriesIndexPosterInfo';
-import styles from './SeriesIndexPoster.css';
+import styles from './SeriesIndexPoster.module.css';
 
 interface SeriesIndexPosterProps {
   seriesId: number;
@@ -32,11 +33,31 @@ interface SeriesIndexPosterProps {
   posterHeight: number;
 }
 
+function getStatusBadge(status: SeriesStatus, showStatuses: ShowStatusMode[]) {
+  if (status === 'deleted' && showStatuses.includes('deleted')) {
+    return { label: translate('Deleted'), statusClass: styles.deleted };
+  }
+
+  if (status === 'continuing' && showStatuses.includes('continuing')) {
+    return { label: translate('Continuing'), statusClass: styles.continuing };
+  }
+
+  if (status === 'upcoming' && showStatuses.includes('upcoming')) {
+    return { label: translate('Upcoming'), statusClass: styles.upcoming };
+  }
+
+  if (status === 'ended' && showStatuses.includes('ended')) {
+    return { label: translate('Ended'), statusClass: styles.ended };
+  }
+
+  return null;
+}
+
 function SeriesIndexPoster(props: SeriesIndexPosterProps) {
   const { seriesId, sortKey, isSelectMode, posterWidth, posterHeight } = props;
 
   const { series, qualityProfile, isRefreshingSeries, isSearchingSeries } =
-    useSelector(createSeriesIndexItemSelector(props.seriesId));
+    useSeriesIndexItem(seriesId);
 
   const {
     detailedProgressBar,
@@ -45,57 +66,30 @@ function SeriesIndexPoster(props: SeriesIndexPosterProps) {
     showQualityProfile,
     showTags,
     showSearchAction,
-  } = useSelector(selectPosterOptions);
+    showStatuses,
+  } = useSeriesPosterOptions();
 
   const { showRelativeDates, shortDateFormat, longDateFormat, timeFormat } =
-    useSelector(createUISettingsSelector());
+    useUiSettingsValues();
 
-  const {
-    title,
-    monitored,
-    status,
-    path,
-    titleSlug,
-    originalLanguage,
-    network,
-    nextAiring,
-    previousAiring,
-    added,
-    statistics = {} as Statistics,
-    images,
-    tags,
-  } = series;
-
-  const {
-    seasonCount = 0,
-    episodeCount = 0,
-    episodeFileCount = 0,
-    totalEpisodeCount = 0,
-    sizeOnDisk = 0,
-  } = statistics;
-
-  const dispatch = useDispatch();
+  const executeCommand = useExecuteCommand();
   const [hasPosterError, setHasPosterError] = useState(false);
   const [isEditSeriesModalOpen, setIsEditSeriesModalOpen] = useState(false);
   const [isDeleteSeriesModalOpen, setIsDeleteSeriesModalOpen] = useState(false);
 
   const onRefreshPress = useCallback(() => {
-    dispatch(
-      executeCommand({
-        name: REFRESH_SERIES,
-        seriesId,
-      })
-    );
-  }, [seriesId, dispatch]);
+    executeCommand({
+      name: CommandNames.RefreshSeries,
+      seriesIds: [seriesId],
+    });
+  }, [seriesId, executeCommand]);
 
   const onSearchPress = useCallback(() => {
-    dispatch(
-      executeCommand({
-        name: SERIES_SEARCH,
-        seriesId,
-      })
-    );
-  }, [seriesId, dispatch]);
+    executeCommand({
+      name: CommandNames.SeriesSearch,
+      seriesId,
+    });
+  }, [seriesId, executeCommand]);
 
   const onPosterLoadError = useCallback(() => {
     setHasPosterError(true);
@@ -122,6 +116,36 @@ function SeriesIndexPoster(props: SeriesIndexPosterProps) {
     setIsDeleteSeriesModalOpen(false);
   }, [setIsDeleteSeriesModalOpen]);
 
+  if (!series) {
+    return null;
+  }
+
+  const {
+    title,
+    monitored,
+    status,
+    path,
+    titleSlug,
+    originalCountry,
+    originalLanguage,
+    network,
+    nextAiring,
+    previousAiring,
+    added,
+    statistics = {} as Statistics,
+    images,
+    ratings,
+    tags,
+  } = series;
+
+  const {
+    seasonCount = 0,
+    episodeCount = 0,
+    episodeFileCount = 0,
+    totalEpisodeCount = 0,
+    sizeOnDisk = 0,
+  } = statistics;
+
   const link = `/series/${titleSlug}`;
 
   const elementStyle = {
@@ -129,17 +153,26 @@ function SeriesIndexPoster(props: SeriesIndexPosterProps) {
     height: `${posterHeight}px`,
   };
 
+  const statusBadge = getStatusBadge(status, showStatuses);
+
+  const monitoredLabel = monitored
+    ? translate('Monitored')
+    : translate('Unmonitored');
+
   return (
     <div className={styles.content}>
       <div className={styles.posterContainer} title={title}>
-        {isSelectMode ? <SeriesIndexPosterSelect seriesId={seriesId} /> : null}
+        {isSelectMode ? (
+          <SeriesIndexPosterSelect seriesId={seriesId} titleSlug={titleSlug} />
+        ) : null}
 
-        <Label className={styles.controls}>
+        <div className={styles.controls}>
           <SpinnerIconButton
             className={styles.action}
             name={icons.REFRESH}
             title={translate('RefreshSeries')}
             isSpinning={isRefreshingSeries}
+            tabIndex={-1}
             onPress={onRefreshPress}
           />
 
@@ -149,6 +182,7 @@ function SeriesIndexPoster(props: SeriesIndexPosterProps) {
               name={icons.SEARCH}
               title={translate('SearchForMonitoredEpisodes')}
               isSpinning={isSearchingSeries}
+              tabIndex={-1}
               onPress={onSearchPress}
             />
           ) : null}
@@ -157,22 +191,19 @@ function SeriesIndexPoster(props: SeriesIndexPosterProps) {
             className={styles.action}
             name={icons.EDIT}
             title={translate('EditSeries')}
+            aria-label={translate('EditSeries')}
+            tabIndex={-1}
             onPress={onEditSeriesPress}
           />
-        </Label>
+        </div>
 
-        {status === 'ended' ? (
+        {statusBadge ? (
           <div
-            className={classNames(styles.status, styles.ended)}
-            title={translate('Ended')}
-          />
-        ) : null}
-
-        {status === 'deleted' ? (
-          <div
-            className={classNames(styles.status, styles.deleted)}
-            title={translate('Deleted')}
-          />
+            className={classNames(styles.status, statusBadge.statusClass)}
+            title={statusBadge.label}
+          >
+            <span className={styles.statusLabel}>{statusBadge.label}</span>
+          </div>
         ) : null}
 
         <Link className={styles.link} style={elementStyle} to={link}>
@@ -182,6 +213,7 @@ function SeriesIndexPoster(props: SeriesIndexPosterProps) {
             size={250}
             lazy={false}
             overflow={true}
+            title={title}
             onError={onPosterLoadError}
             onLoad={onPosterLoad}
           />
@@ -210,15 +242,16 @@ function SeriesIndexPoster(props: SeriesIndexPosterProps) {
         </div>
       ) : null}
 
-      {showMonitored ? (
-        <div className={styles.title}>
-          {monitored ? translate('Monitored') : translate('Unmonitored')}
-        </div>
-      ) : null}
+      {showMonitored || (showQualityProfile && !!qualityProfile?.name) ? (
+        <div className={styles.meta}>
+          {showMonitored ? monitoredLabel : null}
 
-      {showQualityProfile && !!qualityProfile?.name ? (
-        <div className={styles.title} title={translate('QualityProfile')}>
-          {qualityProfile.name}
+          {showMonitored && showQualityProfile && !!qualityProfile?.name ? (
+            <span className={styles.metaSep}> · </span>
+          ) : null}
+          {showQualityProfile && !!qualityProfile?.name
+            ? qualityProfile.name
+            : null}
         </div>
       ) : null}
 
@@ -243,13 +276,12 @@ function SeriesIndexPoster(props: SeriesIndexPosterProps) {
 
       {showTags && tags.length ? (
         <div className={styles.tags}>
-          <div className={styles.tagsList}>
-            <TagListConnector tags={tags} />
-          </div>
+          <SeriesIndexTags tags={tags} />
         </div>
       ) : null}
 
       <SeriesIndexPosterInfo
+        originalCountry={originalCountry}
         originalLanguage={originalLanguage}
         network={network}
         previousAiring={previousAiring}
@@ -266,6 +298,7 @@ function SeriesIndexPoster(props: SeriesIndexPosterProps) {
         timeFormat={timeFormat}
         tags={tags}
         showTags={showTags}
+        ratings={ratings}
       />
 
       <EditSeriesModal

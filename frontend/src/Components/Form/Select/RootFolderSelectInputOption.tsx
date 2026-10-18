@@ -5,7 +5,7 @@ import translate from 'Utilities/String/translate';
 import EnhancedSelectInputOption, {
   EnhancedSelectInputOptionProps,
 } from './EnhancedSelectInputOption';
-import styles from './RootFolderSelectInputOption.css';
+import styles from './RootFolderSelectInputOption.module.css';
 
 interface RootFolderSelectInputOptionProps
   extends EnhancedSelectInputOptionProps {
@@ -18,18 +18,16 @@ interface RootFolderSelectInputOptionProps
   isWindows?: boolean;
 }
 
-function RootFolderSelectInputOption(props: RootFolderSelectInputOptionProps) {
-  const {
-    id,
-    value,
-    freeSpace,
-    isMissing,
-    seriesFolder,
-    isMobile,
-    isWindows,
-    ...otherProps
-  } = props;
-
+function RootFolderSelectInputOption({
+  id,
+  value,
+  freeSpace,
+  isMissing,
+  seriesFolder,
+  isMobile,
+  isWindows,
+  ...otherProps
+}: RootFolderSelectInputOptionProps) {
   const slashCharacter = isWindows ? '\\' : '/';
 
   return (

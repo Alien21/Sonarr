@@ -1,3 +1,14 @@
+import {
+  autoUpdate,
+  flip,
+  FloatingPortal,
+  shift,
+  size,
+  useClick,
+  useDismiss,
+  useFloating,
+  useInteractions,
+} from '@floating-ui/react';
 import classNames from 'classnames';
 import React, {
   ElementType,
@@ -9,27 +20,24 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Manager, Popper, Reference } from 'react-popper';
 import Icon from 'Components/Icon';
 import Link from 'Components/Link/Link';
 import LoadingIndicator from 'Components/Loading/LoadingIndicator';
-import Measure from 'Components/Measure';
 import Modal from 'Components/Modal/Modal';
 import ModalBody from 'Components/Modal/ModalBody';
-import Portal from 'Components/Portal';
 import Scroller from 'Components/Scroller/Scroller';
-import { icons, scrollDirections, sizes } from 'Helpers/Props';
+import { icons } from 'Helpers/Props';
 import ArrayElement from 'typings/Helpers/ArrayElement';
 import { EnhancedSelectInputChanged, InputChanged } from 'typings/inputs';
 import { isMobile as isMobileUtil } from 'Utilities/browser';
 import * as keyCodes from 'Utilities/Constants/keyCodes';
-import getUniqueElementId from 'Utilities/getUniqueElementId';
 import TextInput from '../TextInput';
 import HintedSelectInputOption from './HintedSelectInputOption';
 import HintedSelectInputSelectedValue from './HintedSelectInputSelectedValue';
-import styles from './EnhancedSelectInput.css';
+import styles from './EnhancedSelectInput.module.css';
 
-const MINIMUM_DISTANCE_FROM_EDGE = 10;
+const DROPDOWN_VIEWPORT_MARGIN = 12;
+const TYPE_AHEAD_RESET_MS = 1000;
 
 function isArrowKey(keyCode: number) {
   return keyCode === keyCodes.UP_ARROW || keyCode === keyCodes.DOWN_ARROW;
@@ -78,6 +86,49 @@ function nextIndex<T extends EnhancedSelectInputValue<V>, V>(
   values: T[]
 ) {
   return findIndex(selectedIndex, 1, values);
+}
+
+function findMatchIndex<T extends EnhancedSelectInputValue<V>, V>(
+  search: string,
+  start: number,
+  values: T[]
+) {
+  for (let i = 0; i < values.length; i++) {
+    const index = (Math.max(start, 0) + i) % values.length;
+    const option = values[index];
+
+    if (
+      !option.isDisabled &&
+      !option.isHidden &&
+      option.value.toLowerCase().startsWith(search)
+    ) {
+      return index;
+    }
+  }
+
+  return null;
+}
+
+// A single or repeated character cycles through matches, like a native select,
+// unless an option starts with the whole query (e.g. "ee")
+function findTypeAheadIndex<T extends EnhancedSelectInputValue<V>, V>(
+  query: string,
+  selectedIndex: number,
+  values: T[]
+) {
+  if (query.length > 1) {
+    const index = findMatchIndex(query, selectedIndex, values);
+
+    if (index !== null) {
+      return index;
+    }
+  }
+
+  if ([...query].every((c) => c === query[0])) {
+    return findMatchIndex(query[0], selectedIndex + 1, values);
+  }
+
+  return null;
 }
 
 function getSelectedIndex<T extends EnhancedSelectInputValue<V>, V>(
@@ -131,6 +182,7 @@ export interface EnhancedSelectInputProps<
   isEditable?: boolean;
   hasError?: boolean;
   hasWarning?: boolean;
+  modalTitle?: string;
   valueOptions?: object;
   selectedValueOptions?: object;
   selectedValueComponent?: string | ElementType;
@@ -153,6 +205,7 @@ function EnhancedSelectInput<T extends EnhancedSelectInputValue<V>, V>(
     isFetching,
     hasError,
     hasWarning,
+    modalTitle,
     valueOptions,
     selectedValueOptions,
     selectedValueComponent:
@@ -162,18 +215,64 @@ function EnhancedSelectInput<T extends EnhancedSelectInputValue<V>, V>(
     onOpen,
   } = props;
 
-  const updater = useRef<(() => void) | null>(null);
-  const buttonId = useMemo(() => getUniqueElementId(), []);
-  const optionsId = useMemo(() => getUniqueElementId(), []);
   const [selectedIndex, setSelectedIndex] = useState(
     getSelectedIndex(value, values)
   );
-  const [width, setWidth] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const isMobile = useMemo(() => isMobileUtil(), []);
+  const typeAheadQuery = useRef('');
+  const typeAheadTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   const isMultiSelect = Array.isArray(value);
   const selectedOption = getSelectedOption(selectedIndex, values);
+
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (isMobile) {
+        return;
+      }
+
+      setIsOpen(open);
+    },
+    [isMobile]
+  );
+
+  const { refs, context, floatingStyles, isPositioned } = useFloating({
+    middleware: [
+      flip({
+        crossAxis: false,
+        mainAxis: true,
+      }),
+      shift({ padding: DROPDOWN_VIEWPORT_MARGIN }),
+      size({
+        apply({ availableHeight, elements, rects }) {
+          const maxWidth =
+            document.documentElement.clientWidth - DROPDOWN_VIEWPORT_MARGIN * 2;
+
+          Object.assign(elements.floating.style, {
+            minWidth: `${Math.min(rects.reference.width, maxWidth)}px`,
+            maxWidth: `${maxWidth}px`,
+            maxHeight: `${Math.max(
+              0,
+              Math.min(window.innerHeight / 2, availableHeight)
+            )}px`,
+          });
+        },
+      }),
+    ],
+    open: isOpen,
+    placement: 'bottom-start',
+    whileElementsMounted: autoUpdate,
+    onOpenChange: handleOpenChange,
+  });
+
+  const click = useClick(context);
+  const dismiss = useDismiss(context);
+
+  const { getReferenceProps, getFloatingProps } = useInteractions([
+    click,
+    dismiss,
+  ]);
 
   const selectedValue = useMemo(() => {
     if (values.length) {
@@ -189,53 +288,9 @@ function EnhancedSelectInput<T extends EnhancedSelectInputValue<V>, V>(
     return '';
   }, [value, values, isMultiSelect]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleComputeMaxHeight = useCallback((data: any) => {
-    const windowHeight = window.innerHeight;
-
-    data.styles.maxHeight = windowHeight - MINIMUM_DISTANCE_FROM_EDGE;
-
-    return data;
-  }, []);
-
-  const handleWindowClick = useCallback(
-    (event: MouseEvent) => {
-      const button = document.getElementById(buttonId);
-      const options = document.getElementById(optionsId);
-      const eventTarget = event.target as HTMLElement;
-
-      if (!button || !eventTarget.isConnected || isMobile) {
-        return;
-      }
-
-      if (
-        !button.contains(eventTarget) &&
-        options &&
-        !options.contains(eventTarget) &&
-        isOpen
-      ) {
-        setIsOpen(false);
-        window.removeEventListener('click', handleWindowClick);
-      }
-    },
-    [isMobile, isOpen, buttonId, optionsId, setIsOpen]
-  );
-
-  const addListener = useCallback(() => {
-    window.addEventListener('click', handleWindowClick);
-  }, [handleWindowClick]);
-
-  const removeListener = useCallback(() => {
-    window.removeEventListener('click', handleWindowClick);
-  }, [handleWindowClick]);
-
   const handlePress = useCallback(() => {
-    if (!isOpen && onOpen) {
-      onOpen();
-    }
-
-    setIsOpen(!isOpen);
-  }, [isOpen, setIsOpen, onOpen]);
+    setIsOpen((prevIsOpen) => !prevIsOpen);
+  }, []);
 
   const handleSelect = useCallback(
     (newValue: ArrayElement<V>) => {
@@ -292,16 +347,45 @@ function EnhancedSelectInput<T extends EnhancedSelectInputValue<V>, V>(
 
   const handleFocus = useCallback(() => {
     if (isOpen) {
-      removeListener();
       setIsOpen(false);
     }
-  }, [isOpen, setIsOpen, removeListener]);
+  }, [isOpen, setIsOpen]);
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>) => {
       const keyCode = event.keyCode;
       let nextIsOpen: boolean | null = null;
       let nextSelectedIndex: number | null = null;
+
+      const isTypeAheadKey =
+        event.key.length === 1 &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        (event.key !== ' ' || typeAheadQuery.current !== '');
+
+      if (isTypeAheadKey) {
+        event.preventDefault();
+
+        clearTimeout(typeAheadTimeout.current);
+        typeAheadQuery.current += event.key.toLowerCase();
+        typeAheadTimeout.current = setTimeout(() => {
+          typeAheadQuery.current = '';
+        }, TYPE_AHEAD_RESET_MS);
+
+        nextSelectedIndex = findTypeAheadIndex(
+          typeAheadQuery.current,
+          selectedIndex,
+          values
+        );
+
+        if (nextSelectedIndex !== null) {
+          setIsOpen(true);
+          setSelectedIndex(nextSelectedIndex);
+        }
+
+        return;
+      }
 
       if (!isOpen) {
         if (isArrowKey(keyCode)) {
@@ -328,6 +412,7 @@ function EnhancedSelectInput<T extends EnhancedSelectInputValue<V>, V>(
         if (nextSelectedIndex !== null) {
           setSelectedIndex(nextSelectedIndex);
         }
+
         return;
       }
 
@@ -378,13 +463,6 @@ function EnhancedSelectInput<T extends EnhancedSelectInputValue<V>, V>(
     ]
   );
 
-  const handleMeasure = useCallback(
-    ({ width: newWidth }: { width: number }) => {
-      setWidth(newWidth);
-    },
-    [setWidth]
-  );
-
   const handleOptionsModalClose = useCallback(() => {
     setIsOpen(false);
   }, [setIsOpen]);
@@ -397,190 +475,158 @@ function EnhancedSelectInput<T extends EnhancedSelectInputValue<V>, V>(
   );
 
   useEffect(() => {
-    if (updater.current) {
-      updater.current();
+    if (isOpen) {
+      onOpen?.();
+    } else {
+      clearTimeout(typeAheadTimeout.current);
+      typeAheadQuery.current = '';
     }
-  });
+  }, [isOpen, onOpen]);
 
   useEffect(() => {
-    if (isOpen) {
-      addListener();
-    } else {
-      removeListener();
+    if (isPositioned) {
+      refs.floating.current?.children[selectedIndex]?.scrollIntoView({
+        block: 'nearest',
+      });
     }
+  }, [isPositioned, selectedIndex, refs]);
 
-    return removeListener;
-  }, [isOpen, addListener, removeListener]);
+  useEffect(() => {
+    return () => {
+      clearTimeout(typeAheadTimeout.current);
+    };
+  }, []);
 
   return (
-    <div>
-      <Manager>
-        <Reference>
-          {({ ref }) => (
-            <div ref={ref} id={buttonId}>
-              <Measure whitelist={['width']} onMeasure={handleMeasure}>
-                {isEditable && typeof value === 'string' ? (
-                  <div className={styles.editableContainer}>
-                    <TextInput
-                      className={className}
-                      name={name}
-                      value={value}
-                      readOnly={isDisabled}
-                      hasError={hasError}
-                      hasWarning={hasWarning}
-                      onFocus={handleFocus}
-                      onBlur={handleBlur}
-                      onChange={handleEditChange}
-                    />
-                    <Link
-                      className={classNames(
-                        styles.dropdownArrowContainerEditable,
-                        isDisabled
-                          ? styles.dropdownArrowContainerDisabled
-                          : styles.dropdownArrowContainer
-                      )}
-                      onPress={handlePress}
-                    >
-                      {isFetching ? (
-                        <LoadingIndicator
-                          className={styles.loading}
-                          size={20}
-                        />
-                      ) : null}
-
-                      {isFetching ? null : <Icon name={icons.CARET_DOWN} />}
-                    </Link>
-                  </div>
-                ) : (
-                  <Link
-                    className={classNames(
-                      className,
-                      hasError && styles.hasError,
-                      hasWarning && styles.hasWarning,
-                      isDisabled && disabledClassName
-                    )}
-                    isDisabled={isDisabled}
-                    onBlur={handleBlur}
-                    onKeyDown={handleKeyDown}
-                    onPress={handlePress}
-                  >
-                    <SelectedValueComponent
-                      values={values}
-                      {...selectedValueOptions}
-                      selectedValue={selectedValue}
-                      isDisabled={isDisabled}
-                      isMultiSelect={isMultiSelect}
-                    >
-                      {selectedOption ? selectedOption.value : selectedValue}
-                    </SelectedValueComponent>
-
-                    <div
-                      className={
-                        isDisabled
-                          ? styles.dropdownArrowContainerDisabled
-                          : styles.dropdownArrowContainer
-                      }
-                    >
-                      {isFetching ? (
-                        <LoadingIndicator
-                          className={styles.loading}
-                          size={20}
-                        />
-                      ) : null}
-
-                      {isFetching ? null : <Icon name={icons.CARET_DOWN} />}
-                    </div>
-                  </Link>
-                )}
-              </Measure>
-            </div>
-          )}
-        </Reference>
-        <Portal>
-          <Popper
-            placement="bottom-start"
-            modifiers={{
-              computeMaxHeight: {
-                order: 851,
-                enabled: true,
-                fn: handleComputeMaxHeight,
-              },
-              preventOverflow: {
-                enabled: true,
-                boundariesElement: 'viewport',
-              },
-            }}
+    <>
+      <div ref={refs.setReference} {...getReferenceProps()}>
+        {isEditable && typeof value === 'string' ? (
+          <div className={styles.editableContainer}>
+            <TextInput
+              className={className}
+              name={name}
+              value={value}
+              readOnly={isDisabled}
+              hasError={hasError}
+              hasWarning={hasWarning}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
+              onChange={handleEditChange}
+            />
+            <Link
+              className={classNames(
+                styles.dropdownArrowContainerEditable,
+                isDisabled
+                  ? styles.dropdownArrowContainerDisabled
+                  : styles.dropdownArrowContainer
+              )}
+              onPress={handlePress}
+            >
+              {isFetching ? (
+                <LoadingIndicator className={styles.loading} size={20} />
+              ) : (
+                <Icon name={icons.CARET_DOWN} />
+              )}
+            </Link>
+          </div>
+        ) : (
+          <Link
+            className={classNames(
+              className,
+              hasError && styles.hasError,
+              hasWarning && styles.hasWarning,
+              isDisabled && disabledClassName
+            )}
+            isDisabled={isDisabled}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            onPress={handlePress}
           >
-            {({ ref, style, scheduleUpdate }) => {
-              updater.current = scheduleUpdate;
+            <SelectedValueComponent
+              values={values}
+              {...selectedValueOptions}
+              selectedValue={selectedValue}
+              isDisabled={isDisabled}
+              isMultiSelect={isMultiSelect}
+            >
+              {selectedOption ? selectedOption.value : selectedValue}
+            </SelectedValueComponent>
+
+            <div
+              className={
+                isDisabled
+                  ? styles.dropdownArrowContainerDisabled
+                  : styles.dropdownArrowContainer
+              }
+            >
+              {isFetching ? (
+                <LoadingIndicator className={styles.loading} size={20} />
+              ) : (
+                <Icon name={icons.CARET_DOWN} />
+              )}
+            </div>
+          </Link>
+        )}
+      </div>
+
+      {!isMobile && isOpen ? (
+        <FloatingPortal id="portal-root">
+          <Scroller
+            ref={refs.setFloating}
+            className={styles.options}
+            style={floatingStyles}
+            {...getFloatingProps()}
+          >
+            {values.map((v, index) => {
+              const hasParent = v.parentKey !== undefined;
+              const depth = hasParent ? 1 : 0;
+              const parentSelected =
+                v.parentKey !== undefined &&
+                Array.isArray(value) &&
+                value.includes(v.parentKey);
+
+              const { key, ...other } = v;
 
               return (
-                <div
-                  ref={ref}
-                  id={optionsId}
-                  className={styles.optionsContainer}
-                  style={{
-                    ...style,
-                    minWidth: width,
-                  }}
+                <OptionComponent
+                  key={v.key}
+                  id={v.key}
+                  depth={depth}
+                  isSelected={isSelectedItem(index, value, values)}
+                  isFocused={index === selectedIndex}
+                  isDisabled={parentSelected}
+                  isMultiSelect={isMultiSelect}
+                  {...valueOptions}
+                  {...other}
+                  isMobile={false}
+                  onSelect={handleSelect}
                 >
-                  {isOpen && !isMobile ? (
-                    <Scroller
-                      className={styles.options}
-                      style={{
-                        maxHeight: style.maxHeight,
-                      }}
-                    >
-                      {values.map((v, index) => {
-                        const hasParent = v.parentKey !== undefined;
-                        const depth = hasParent ? 1 : 0;
-                        const parentSelected =
-                          v.parentKey !== undefined &&
-                          Array.isArray(value) &&
-                          value.includes(v.parentKey);
-
-                        const { key, ...other } = v;
-
-                        return (
-                          <OptionComponent
-                            key={v.key}
-                            id={v.key}
-                            depth={depth}
-                            isSelected={isSelectedItem(index, value, values)}
-                            isDisabled={parentSelected}
-                            isMultiSelect={isMultiSelect}
-                            {...valueOptions}
-                            {...other}
-                            isMobile={false}
-                            onSelect={handleSelect}
-                          >
-                            {v.value}
-                          </OptionComponent>
-                        );
-                      })}
-                    </Scroller>
-                  ) : null}
-                </div>
+                  {v.value}
+                </OptionComponent>
               );
-            }}
-          </Popper>
-        </Portal>
-      </Manager>
+            })}
+          </Scroller>
+        </FloatingPortal>
+      ) : null}
 
       {isMobile ? (
         <Modal
           className={styles.optionsModal}
-          size={sizes.EXTRA_SMALL}
+          size="extraSmall"
           isOpen={isOpen}
           onModalClose={handleOptionsModalClose}
         >
           <ModalBody
             className={styles.optionsModalBody}
             innerClassName={styles.optionsInnerModalBody}
-            scrollDirection={scrollDirections.NONE}
+            scrollDirection="none"
           >
             <Scroller className={styles.optionsModalScroller}>
               <div className={styles.mobileCloseButtonContainer}>
+                {modalTitle ? (
+                  <div className={styles.mobileTitle}>{modalTitle}</div>
+                ) : null}
+
                 <Link
                   className={styles.mobileCloseButton}
                   onPress={handleOptionsModalClose}
@@ -620,7 +666,7 @@ function EnhancedSelectInput<T extends EnhancedSelectInputValue<V>, V>(
           </ModalBody>
         </Modal>
       ) : null}
-    </div>
+    </>
   );
 }
 

@@ -46,6 +46,12 @@ namespace Sonarr.Api.V3.Parse
                 ? Parser.ParsePath(path, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne)
                 : Parser.ParseTitle(title, _configService.ParseTvdbIdFromReleaseName, _configService.ParseEpisodeNumberOnlyAsSeasonOne);
 
+            // Try to parse a season title if previous parsing failed and we're not dealing with a path.
+            if (parsedEpisodeInfo == null && path.IsNullOrWhiteSpace())
+            {
+                parsedEpisodeInfo = Parser.ParseSeasonTitle(title);
+            }
+
             if (parsedEpisodeInfo == null)
             {
                 return new ParseResource
@@ -66,7 +72,7 @@ namespace Sonarr.Api.V3.Parse
                 return new ParseResource
                 {
                     Title = title,
-                    ParsedEpisodeInfo = remoteEpisode.ParsedEpisodeInfo,
+                    ParsedEpisodeInfo = remoteEpisode.ParsedEpisodeInfo.ToResource(),
                     Series = _seriesResourceService.ToResource(remoteEpisode.Series),
                     Episodes = remoteEpisode.Episodes.ToResource(),
                     Languages = remoteEpisode.Languages,
@@ -79,7 +85,7 @@ namespace Sonarr.Api.V3.Parse
                 return new ParseResource
                 {
                     Title = title,
-                    ParsedEpisodeInfo = parsedEpisodeInfo
+                    ParsedEpisodeInfo = parsedEpisodeInfo.ToResource()
                 };
             }
         }

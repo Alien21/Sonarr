@@ -49,7 +49,15 @@ namespace NzbDrone.Core.Organizer
                 ImdbId = "tt12345",
                 TvdbId = 12345,
                 TvMazeId = 54321,
-                TmdbId = 11223
+                TmdbId = 11223,
+                Seasons = new List<Season>
+                {
+                    new Season
+                    {
+                        SeasonNumber = 1,
+                        Title = "Part 1"
+                    }
+                }
             };
 
             _dailySeries = new Series
@@ -60,7 +68,15 @@ namespace NzbDrone.Core.Organizer
                 ImdbId = "tt12345",
                 TvdbId = 12345,
                 TvMazeId = 54321,
-                TmdbId = 11223
+                TmdbId = 11223,
+                Seasons = new List<Season>
+                {
+                    new Season
+                    {
+                        SeasonNumber = 1,
+                        Title = "Part 1"
+                    }
+                }
             };
 
             _animeSeries = new Series
@@ -71,7 +87,15 @@ namespace NzbDrone.Core.Organizer
                 ImdbId = "tt12345",
                 TvdbId = 12345,
                 TvMazeId = 54321,
-                TmdbId = 11223
+                TmdbId = 11223,
+                Seasons = new List<Season>
+                {
+                    new Season
+                    {
+                        SeasonNumber = 1,
+                        Title = "Part 1"
+                    }
+                }
             };
 
             _episode1 = new Episode
@@ -102,30 +126,50 @@ namespace NzbDrone.Core.Organizer
             _singleEpisode = new List<Episode> { _episode1 };
             _multiEpisodes = new List<Episode> { _episode1, _episode2, _episode3 };
 
-            var mediaInfo = new MediaInfoModel()
+            var mediaInfo = new MediaInfoModel
             {
                 VideoFormat = "AVC",
                 VideoBitDepth = 10,
                 VideoColourPrimaries = "bt2020",
                 VideoTransferCharacteristics = "HLG",
-                AudioFormat = "DTS",
-                AudioChannels = 6,
-                AudioChannelPositions = "5.1",
-                AudioLanguages = new List<string> { "ger" },
-                Subtitles = new List<string> { "eng", "ger" }
+                AudioStreams =
+                [
+                    new MediaInfoAudioStreamModel
+                    {
+                        Language = "ger",
+                        Format = "dts",
+                        Channels = 6,
+                        ChannelPositions = "5.1",
+                    }
+                ],
+                SubtitleStreams =
+                [
+                    new MediaInfoSubtitleStreamModel { Language = "eng" },
+                    new MediaInfoSubtitleStreamModel { Language = "ger" }
+                ],
             };
 
-            var mediaInfoAnime = new MediaInfoModel()
+            var mediaInfoAnime = new MediaInfoModel
             {
                 VideoFormat = "AVC",
                 VideoBitDepth = 10,
                 VideoColourPrimaries = "BT.2020",
                 VideoTransferCharacteristics = "HLG",
-                AudioFormat = "DTS",
-                AudioChannels = 6,
-                AudioChannelPositions = "5.1",
-                AudioLanguages = new List<string> { "jpn" },
-                Subtitles = new List<string> { "jpn", "eng" }
+                AudioStreams =
+                [
+                    new MediaInfoAudioStreamModel
+                    {
+                        Language = "jpn",
+                        Format = "dts",
+                        Channels = 6,
+                        ChannelPositions = "5.1",
+                    }
+                ],
+                SubtitleStreams =
+                [
+                    new MediaInfoSubtitleStreamModel { Language = "jpn" },
+                    new MediaInfoSubtitleStreamModel { Language = "eng" }
+                ],
             };
 
             _customFormats = new List<CustomFormat>

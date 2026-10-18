@@ -17,7 +17,7 @@ namespace Sonarr.Http.Frontend
     {
         private readonly IEnumerable<IMapHttpRequestsToDisk> _requestMappers;
         private readonly Logger _logger;
-        private static readonly Regex InvalidPathRegex = new (@"([\/\\]|%2f|%5c)\.\.|\.\.([\/\\]|%2f|%5c)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex InvalidPathRegex = new(@"([\/\\]|%2f|%5c)\.\.|\.\.([\/\\]|%2f|%5c)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         public StaticResourceController(IEnumerable<IMapHttpRequestsToDisk> requestMappers,
             Logger logger)
@@ -31,6 +31,13 @@ namespace Sonarr.Http.Frontend
         public async Task<IActionResult> LoginPage()
         {
             return await MapResource("login");
+        }
+
+        [AllowAnonymous]
+        [HttpGet("loggedout")]
+        public async Task<IActionResult> LogoutPage()
+        {
+            return await MapResource("logout");
         }
 
         [EnableCors("AllowGet")]
@@ -61,7 +68,7 @@ namespace Sonarr.Http.Frontend
 
             if (mapper != null)
             {
-                var result = await mapper.GetResponse(path);
+                var result = await mapper.GetResponse(Request.HttpContext, path);
 
                 if (result != null)
                 {

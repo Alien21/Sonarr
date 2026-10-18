@@ -1,29 +1,23 @@
 import React from 'react';
-import { useSelector } from 'react-redux';
-import AppState from 'App/State/AppState';
+import { useCalendarOptions } from 'Calendar/calendarOptionsStore';
 import { icons, kinds } from 'Helpers/Props';
-import createUISettingsSelector from 'Store/Selectors/createUISettingsSelector';
 import translate from 'Utilities/String/translate';
-import LegendIconItem from './LegendIconItem';
 import LegendItem from './LegendItem';
-import styles from './Legend.css';
+import styles from './Legend.module.css';
 
 function Legend() {
-  const view = useSelector((state: AppState) => state.calendar.view);
   const {
     showFinaleIcon,
     showSpecialIcon,
     showCutoffUnmetIcon,
     fullColorEvents,
-  } = useSelector((state: AppState) => state.calendar.options);
-  const { enableColorImpairedMode } = useSelector(createUISettingsSelector());
+  } = useCalendarOptions();
 
   const iconsToShow = [];
-  const isAgendaView = view === 'agenda';
 
   if (showFinaleIcon) {
     iconsToShow.push(
-      <LegendIconItem
+      <LegendItem
         name={translate('SeasonFinale')}
         icon={icons.FINALE_SEASON}
         kind={kinds.WARNING}
@@ -33,7 +27,7 @@ function Legend() {
     );
 
     iconsToShow.push(
-      <LegendIconItem
+      <LegendItem
         name={translate('SeriesFinale')}
         icon={icons.FINALE_SERIES}
         kind={kinds.DANGER}
@@ -45,9 +39,9 @@ function Legend() {
 
   if (showSpecialIcon) {
     iconsToShow.push(
-      <LegendIconItem
+      <LegendItem
         name={translate('Special')}
-        icon={icons.INFO}
+        icon={icons.SPECIAL}
         kind={kinds.PINK}
         fullColorEvents={fullColorEvents}
         tooltip={translate('SpecialEpisode')}
@@ -57,9 +51,9 @@ function Legend() {
 
   if (showCutoffUnmetIcon) {
     iconsToShow.push(
-      <LegendIconItem
+      <LegendItem
         name={translate('CutoffNotMet')}
-        icon={icons.EPISODE_FILE}
+        icon={icons.CUTOFF_NOT_MET}
         kind={kinds.WARNING}
         fullColorEvents={fullColorEvents}
         tooltip={translate('QualityCutoffNotMet')}
@@ -73,17 +67,13 @@ function Legend() {
         <LegendItem
           status="unaired"
           tooltip={translate('CalendarLegendEpisodeUnairedTooltip')}
-          isAgendaView={isAgendaView}
           fullColorEvents={fullColorEvents}
-          colorImpairedMode={enableColorImpairedMode}
         />
 
         <LegendItem
           status="unmonitored"
           tooltip={translate('CalendarLegendEpisodeUnmonitoredTooltip')}
-          isAgendaView={isAgendaView}
           fullColorEvents={fullColorEvents}
-          colorImpairedMode={enableColorImpairedMode}
         />
       </div>
 
@@ -92,17 +82,13 @@ function Legend() {
           status="onAir"
           name="On Air"
           tooltip={translate('CalendarLegendEpisodeOnAirTooltip')}
-          isAgendaView={isAgendaView}
           fullColorEvents={fullColorEvents}
-          colorImpairedMode={enableColorImpairedMode}
         />
 
         <LegendItem
           status="missing"
           tooltip={translate('CalendarLegendEpisodeMissingTooltip')}
-          isAgendaView={isAgendaView}
           fullColorEvents={fullColorEvents}
-          colorImpairedMode={enableColorImpairedMode}
         />
       </div>
 
@@ -110,22 +96,18 @@ function Legend() {
         <LegendItem
           status="downloading"
           tooltip={translate('CalendarLegendEpisodeDownloadingTooltip')}
-          isAgendaView={isAgendaView}
           fullColorEvents={fullColorEvents}
-          colorImpairedMode={enableColorImpairedMode}
         />
 
         <LegendItem
           status="downloaded"
           tooltip={translate('CalendarLegendEpisodeDownloadedTooltip')}
-          isAgendaView={isAgendaView}
           fullColorEvents={fullColorEvents}
-          colorImpairedMode={enableColorImpairedMode}
         />
       </div>
 
       <div>
-        <LegendIconItem
+        <LegendItem
           name={translate('Premiere')}
           icon={icons.PREMIERE}
           kind={kinds.INFO}
