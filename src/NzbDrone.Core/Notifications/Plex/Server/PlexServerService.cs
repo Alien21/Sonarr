@@ -19,6 +19,7 @@ namespace NzbDrone.Core.Notifications.Plex.Server
     {
         void UpdateLibrary(Series series, PlexServerSettings settings);
         void UpdateLibrary(IEnumerable<Series> series, PlexServerSettings settings);
+        void MarkAsRecentlyAdded(PlexServerSettings settings, DownloadMessage message);
         ValidationFailure Test(PlexServerSettings settings);
     }
 
@@ -37,6 +38,11 @@ namespace NzbDrone.Core.Notifications.Plex.Server
             _rootFolderService = rootFolderService;
             _localizationService = localizationService;
             _logger = logger;
+        }
+
+        public void MarkAsRecentlyAdded(PlexServerSettings settings, DownloadMessage message)
+        {
+            _plexServerProxy.MarkAsRecentlyAdded(settings, message);
         }
 
         public void UpdateLibrary(Series series, PlexServerSettings settings)

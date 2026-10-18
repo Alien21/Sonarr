@@ -42,6 +42,7 @@ namespace Sonarr.Api.V3.Config
         public bool UpdateAutomatically { get; set; }
         public UpdateMechanism UpdateMechanism { get; set; }
         public string UpdateScriptPath { get; set; }
+        public bool MarkImportedMediaAsRecentlyAdded { get; set; }
         public bool PreferDualAudio { get; set; }
         public bool AllowAutomaticImport { get; set; }
         public bool ParseTvdbIdFromReleaseName { get; set; }
@@ -99,6 +100,7 @@ namespace Sonarr.Api.V3.Config
                 UpdateAutomatically = model.UpdateAutomatically,
                 UpdateMechanism = model.UpdateMechanism,
                 UpdateScriptPath = model.UpdateScriptPath,
+                MarkImportedMediaAsRecentlyAdded = configService.MarkImportedMediaAsRecentlyAdded,
                 PreferDualAudio = configService.PreferDualAudio,
                 AllowAutomaticImport = configService.AllowAutomaticImport,
                 ParseTvdbIdFromReleaseName = configService.ParseTvdbIdFromReleaseName,

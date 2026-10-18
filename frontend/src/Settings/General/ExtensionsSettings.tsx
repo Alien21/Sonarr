@@ -81,6 +81,18 @@ function ExtensionsSettings({
           {...settings.theTvdbApiKey}
         />
       </FormRow>
+      <FormRow size={sizes.MEDIUM}>
+        <FormLabel>{translate('MarkImportedMediaAsRecentlyAdded')}</FormLabel>
+        <FormInputHelpText
+          text={translate('MarkImportedMediaAsRecentlyAddedHelpText')}
+        />
+        <FormInput
+          type={inputTypes.CHECK}
+          name="markImportedMediaAsRecentlyAdded"
+          onChange={onInputChange}
+          {...settings.markImportedMediaAsRecentlyAdded}
+        />
+      </FormRow>
     </FieldSet>
   );
 }

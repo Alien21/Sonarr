@@ -12,6 +12,7 @@ export type UpdateMechanism =
   | 'docker';
 
 export interface GeneralSettingsModel {
+  markImportedMediaAsRecentlyAdded: boolean;
   preferDualAudio: boolean;
   allowAutomaticImport: boolean;
   parseTvdbIdFromReleaseName: boolean;

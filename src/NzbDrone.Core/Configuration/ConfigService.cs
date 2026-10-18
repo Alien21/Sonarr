@@ -445,6 +445,8 @@ namespace NzbDrone.Core.Configuration
 
         public string HmacSalt => GetValue("HmacSalt", Guid.NewGuid().ToString(), true);
 
+        public bool MarkImportedMediaAsRecentlyAdded => GetValueBoolean("MarkImportedMediaAsRecentlyAdded", false);
+
         public bool PreferDualAudio => GetValueBoolean("PreferDualAudio", false);
 
         public bool AllowAutomaticImport => GetValueBoolean("AllowAutomaticImport", false);

@@ -118,6 +118,29 @@ namespace NzbDrone.Core.Test.Configuration
             AssertUpsert("PreferredMetadataLanguage", Language.Czech.Id);
         }
 
+        [Test]
+        public void recently_added_imports_should_default_to_disabled()
+        {
+            Subject.MarkImportedMediaAsRecentlyAdded.Should().BeFalse();
+        }
+
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        public void should_persist_recently_added_import_preference(bool previous, bool enabled)
+        {
+            Mocker.GetMock<IConfigRepository>().Setup(c => c.All()).Returns(new List<Config>
+            {
+                new Config { Key = "markimportedmediaasrecentlyadded", Value = previous.ToString() }
+            });
+
+            Subject.SaveConfigDictionary(new Dictionary<string, object>
+            {
+                [nameof(ConfigService.MarkImportedMediaAsRecentlyAdded)] = enabled
+            });
+
+            AssertUpsert(nameof(ConfigService.MarkImportedMediaAsRecentlyAdded), enabled);
+        }
+
         private void AssertUpsert(string key, object value)
         {
             Mocker.GetMock<IConfigRepository>().Verify(c => c.Upsert(key.ToLowerInvariant(), value.ToString()));

@@ -15,6 +15,7 @@ namespace NzbDrone.Core.Notifications.Emby
     {
         void Notify(MediaBrowserSettings settings, string title, string message);
         void Update(MediaBrowserSettings settings, Series series, string updateType);
+        void MarkAsRecentlyAdded(MediaBrowserSettings settings, DownloadMessage message);
         ValidationFailure Test(MediaBrowserSettings settings);
     }
 
@@ -29,6 +30,11 @@ namespace NzbDrone.Core.Notifications.Emby
             _proxy = proxy;
             _localizationService = localizationService;
             _logger = logger;
+        }
+
+        public void MarkAsRecentlyAdded(MediaBrowserSettings settings, DownloadMessage message)
+        {
+            _proxy.MarkAsRecentlyAdded(settings, message);
         }
 
         public void Notify(MediaBrowserSettings settings, string title, string message)

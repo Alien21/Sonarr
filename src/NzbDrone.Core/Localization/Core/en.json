@@ -2486,5 +2486,7 @@
   "NoRootFolders": "No Root Folders",
   "SeriesInfoLanguage": "Series Info Language",
   "SeriesInfoLanguageHelpText": "Language that {appName} will use for series information from metadata providers",
-  "SeriesInfoLanguageHelpTextWarning": "Existing series require a refresh to update metadata"
+  "SeriesInfoLanguageHelpTextWarning": "Existing series require a refresh to update metadata",
+  "MarkImportedMediaAsRecentlyAdded": "Mark imported episodes as recently added",
+  "MarkImportedMediaAsRecentlyAddedHelpText": "Updates the added date of successfully imported episodes in Plex and Emby/Jellyfin, including replacements. Uses Connections enabled for imports and matching their tags, even when upgrade notifications are off. Library refresh remains optional."
 }
