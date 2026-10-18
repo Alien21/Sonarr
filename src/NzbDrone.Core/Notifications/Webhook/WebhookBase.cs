@@ -6,6 +6,7 @@ using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Localization;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Tags;
 using NzbDrone.Core.Tv;
 
@@ -196,7 +197,7 @@ namespace NzbDrone.Core.Notifications.Webhook
 
         protected WebhookManualInteractionPayload BuildManualInteractionRequiredPayload(ManualInteractionRequiredMessage message)
         {
-            var remoteEpisode = message.Episode;
+            var remoteEpisode = message.Episode ?? new RemoteEpisode();
             var quality = message.Quality;
 
             return new WebhookManualInteractionPayload

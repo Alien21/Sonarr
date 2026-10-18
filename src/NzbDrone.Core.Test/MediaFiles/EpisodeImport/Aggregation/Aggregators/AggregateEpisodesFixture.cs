@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using FizzWare.NBuilder;
+using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Extensions;
@@ -33,6 +34,32 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport.Aggregation.Aggregators
                   .Returns(Builder<Episode>.CreateListOfSize(1).BuildList());
 
             Mocker.SetConstant(augmenters.Select(c => c.Object));
+        }
+
+        [Test]
+        public void should_keep_unresolved_fallback_metadata_without_matching_episodes()
+        {
+            Mocker.SetConstant<IParsingService>(Mocker.Resolve<ParsingService>());
+
+            var localEpisode = new LocalEpisode
+            {
+                Path = "/archive/deluge/download/Nedobrodružný tábor.Disadventure Camp (9 dielov,1080p,CZ) - [tvdb-433384][1080p]/1 – Sejdeme se v Tipiskaw.mp4".AsOsAgnostic(),
+                Series = null,
+                SceneSource = true,
+                OtherVideoFiles = true,
+                FileEpisodeInfo = new ParsedEpisodeInfo
+                {
+                    ReleaseTitle = "1 – Sejdeme se v Tipiskaw",
+                    SeriesTitle = "1 – Sejdeme se v Tipiskaw"
+                }
+            };
+
+            var result = Subject.Aggregate(localEpisode, null);
+
+            result.Should().BeSameAs(localEpisode);
+            result.Episodes.Should().BeEmpty();
+            Mocker.GetMock<ISeriesService>()
+                  .Verify(s => s.FindByTitle(It.IsAny<string>()), Times.Never());
         }
 
         [Test]

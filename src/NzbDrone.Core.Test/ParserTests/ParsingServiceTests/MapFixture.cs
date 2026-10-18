@@ -106,6 +106,29 @@ namespace NzbDrone.Core.Test.ParserTests.ParsingServiceTests
         }
 
         [Test]
+        public void should_leave_series_unmatched_when_fallback_has_no_series_title_info()
+        {
+            _parsedEpisodeInfo.SeriesTitleInfo = null;
+
+            var result = Subject.Map(_parsedEpisodeInfo, 0, 0, null);
+
+            result.Series.Should().BeNull();
+            result.Episodes.Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_match_external_tvdb_id_when_fallback_has_no_series_title_info()
+        {
+            _parsedEpisodeInfo.SeriesTitleInfo = null;
+            GivenMatchByTvdbId();
+
+            var result = Subject.Map(_parsedEpisodeInfo, _series.TvdbId, 0, null);
+
+            result.Series.Should().Be(_series);
+            result.SeriesMatchType.Should().Be(SeriesMatchType.Id);
+        }
+
+        [Test]
         public void should_use_parsed_tvdbid_before_series_title_lookup()
         {
             const int tvdbId = 12345;

@@ -540,13 +540,13 @@ namespace NzbDrone.Core.Parser
                 matchType = SeriesMatchType.Title;
             }
 
-            if (series == null && parsedEpisodeInfo.SeriesTitleInfo.AllTitles != null)
+            if (series == null && parsedEpisodeInfo.SeriesTitleInfo?.AllTitles != null)
             {
                 series = GetSeriesByAllTitles(parsedEpisodeInfo);
                 matchType = SeriesMatchType.Title;
             }
 
-            if (series == null && parsedEpisodeInfo.SeriesTitleInfo.Year > 0)
+            if (series == null && parsedEpisodeInfo.SeriesTitleInfo?.Year > 0)
             {
                 series = _seriesService.FindByTitle(parsedEpisodeInfo.SeriesTitleInfo.TitleWithoutYear, parsedEpisodeInfo.SeriesTitleInfo.Year);
                 matchType = SeriesMatchType.Title;

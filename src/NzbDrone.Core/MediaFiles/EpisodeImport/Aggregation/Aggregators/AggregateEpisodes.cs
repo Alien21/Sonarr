@@ -67,6 +67,11 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Aggregation.Aggregators
 
         private List<Episode> GetEpisodes(LocalEpisode localEpisode)
         {
+            if (localEpisode.Series == null)
+            {
+                return new List<Episode>();
+            }
+
             var bestEpisodeInfoForEpisodes = GetBestEpisodeInfo(localEpisode);
             var isMediaFile = MediaFileExtensions.Extensions.Contains(Path.GetExtension(localEpisode.Path));
 
