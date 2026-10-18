@@ -183,6 +183,7 @@ namespace NzbDrone.Core.Queue
                     return analyzedFiles.Sum(file => (decimal)file.Size);
                 }
             }
+
             return trackedDownload.DownloadItem.TotalSize;
         }
 

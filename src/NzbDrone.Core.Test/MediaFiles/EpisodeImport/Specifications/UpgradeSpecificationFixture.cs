@@ -644,6 +644,7 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport.Specifications
             result.Accepted.Should().BeFalse();
             result.Reason.Should().Be(ImportRejectionReason.DualAudioUpgradeManualReview);
         }
+
         [Test]
         public void should_return_false_and_a_specific_reason_if_not_upgrade_to_custom_format_score_after_local_file_rename_but_was_before()
         {
@@ -686,6 +687,5 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport.Specifications
             result.Accepted.Should().BeFalse();
             result.Reason.Should().Be(ImportRejectionReason.NotCustomFormatUpgradeAfterRename);
         }
-
     }
 }

@@ -218,7 +218,6 @@ namespace NzbDrone.Core.MetadataSource.SkyHook
 
         private void AddSeriesInfoLanguageSearchResults(List<Series> results, string searchTerm, Language language)
         {
-
             if (language == Language.English || IsIdSearch(searchTerm))
             {
                 return;

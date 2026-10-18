@@ -128,6 +128,7 @@ namespace NzbDrone.Core.Test.Configuration
         public void config_properties_should_write_and_read_using_same_key()
         {
             var configProvider = Subject;
+
             // The legacy language property intentionally aliases PreferredMetadataLanguage.
             var allProperties = typeof(ConfigService).GetProperties()
                 .Where(p => p.GetSetMethod() != null && p.Name != nameof(ConfigService.SeriesInfoLanguage)).ToList();

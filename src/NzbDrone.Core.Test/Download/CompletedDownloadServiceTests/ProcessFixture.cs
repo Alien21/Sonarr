@@ -317,9 +317,11 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             AssertReadyToImport();
 
             Mocker.GetMock<IAddSeriesService>()
-                  .Verify(s => s.AddSeries(It.Is<Series>(series => series.TvdbId == 457275 &&
-                                                                    series.Tags.Contains(1) &&
-                                                                    series.Tags.Contains(2))), Times.Once());
+                  .Verify(
+                      s => s.AddSeries(It.Is<Series>(series => series.TvdbId == 457275 &&
+                                                              series.Tags.Contains(1) &&
+                                                              series.Tags.Contains(2))),
+                      Times.Once());
         }
 
         [Test]

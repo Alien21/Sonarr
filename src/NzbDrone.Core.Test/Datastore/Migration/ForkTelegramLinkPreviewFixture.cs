@@ -7,7 +7,6 @@ using FluentMigrator;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using NzbDrone.Core.Datastore;
-using NzbDrone.Core.Datastore.Migration;
 using NzbDrone.Core.Datastore.Migration.Framework;
 using NzbDrone.Core.Test.Framework;
 
@@ -109,7 +108,8 @@ public class ForkTelegramLinkPreviewFixture : DbTest
                     @Enabled, @Enabled, @Enabled, @Enabled, @Enabled, @Enabled)",
             new { Settings = settings, Enabled = true });
         connection.Execute(@"INSERT INTO ""VersionInfo"" (""Version"", ""AppliedOn"", ""Description"")
-            VALUES (218, @AppliedOn, 'add_series_translations')", new { AppliedOn = DateTime.UtcNow });
+            VALUES (218, @AppliedOn, 'add_series_translations')",
+            new { AppliedOn = DateTime.UtcNow });
     }
 
     private class ForkTelegramNotification

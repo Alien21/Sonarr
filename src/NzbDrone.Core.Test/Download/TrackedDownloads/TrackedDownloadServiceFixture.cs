@@ -698,7 +698,9 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
                 .Setup(s => s.GetFiles(It.IsAny<IEnumerable<int>>()))
                 .Returns(new List<EpisodeFile> { new() { Id = 10, Size = 1024 } });
             Mocker.SetConstant<ITrackedDownloadAlreadyImported>(new TrackedDownloadAlreadyImported(
-                Mocker.GetMock<IMediaFileService>().Object, TestLogger));            Mocker.GetMock<IHistoryService>()
+                Mocker.GetMock<IMediaFileService>().Object, TestLogger));
+
+            Mocker.GetMock<IHistoryService>()
                 .Setup(s => s.FindByDownloadId(It.Is<string>(sr => sr == "35238")))
                 .Returns(history);
 
@@ -743,7 +745,6 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
                     Name = client.Name
                 }
             };
-
 
             var imported = Subject.TrackDownload(client, item);
             imported.State.Should().Be(TrackedDownloadState.Imported);

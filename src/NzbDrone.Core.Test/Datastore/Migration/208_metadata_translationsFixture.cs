@@ -43,7 +43,8 @@ public class metadata_translationsFixture : MigrationTest<metadata_translations>
                 VALUES (1, 42, 'Český název', 'ceskynazev', 'Původní český popis', @Language)",
                 new { Language = Language.Czech.Id });
             connection.Execute(@"INSERT INTO ""VersionInfo"" (""Version"", ""AppliedOn"", ""Description"")
-                VALUES (218, @AppliedOn, 'add_series_translations')", new { AppliedOn = DateTime.UtcNow });
+                VALUES (218, @AppliedOn, 'add_series_translations')",
+                new { AppliedOn = DateTime.UtcNow });
         }
 
         var db = WithMigrationTestDb();

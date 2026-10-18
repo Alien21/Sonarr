@@ -67,6 +67,7 @@ namespace NzbDrone.Core.Test.QueueTests
 
             distinct.Should().HaveCount(3);
         }
+
         [Test]
         public void should_map_queue_item_with_series_but_no_parsed_episode_info()
         {
