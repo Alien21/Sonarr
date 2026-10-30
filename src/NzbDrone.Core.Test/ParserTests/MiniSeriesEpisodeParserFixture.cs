@@ -20,7 +20,7 @@ namespace NzbDrone.Core.Test.ParserTests
             var result = Parser.Parser.ParseTitle(postTitle);
             result.Should().NotBeNull();
             result.EpisodeNumbers.Should().HaveCount(1);
-            result.SeasonNumber.Should().Be(1);
+            result.SeasonNumbers.Should().Equal(1);
             result.EpisodeNumbers.First().Should().Be(episodeNumber);
             result.SeriesTitle.Should().Be(title);
             result.AbsoluteEpisodeNumbers.Should().BeEmpty();
@@ -38,7 +38,7 @@ namespace NzbDrone.Core.Test.ParserTests
             var result = Parser.Parser.ParseTitle(postTitle, false, true);
             result.Should().NotBeNull();
             result.EpisodeNumbers.Should().HaveCount(1);
-            result.SeasonNumber.Should().Be(1);
+            result.SeasonNumbers.Should().Equal(1);
             result.EpisodeNumbers.First().Should().Be(episodeNumber);
             result.SeriesTitle.Should().Be(title);
             result.AbsoluteEpisodeNumbers.Should().BeEmpty();
@@ -51,7 +51,7 @@ namespace NzbDrone.Core.Test.ParserTests
         {
             var result = Parser.Parser.ParseTitle(postTitle, false, true);
             result.Should().NotBeNull();
-            result.SeasonNumber.Should().Be(1);
+            result.SeasonNumbers.Should().Equal(1);
             result.EpisodeNumbers.Should().BeEquivalentTo(episodeNumbers);
             result.SeriesTitle.Should().Be(title);
             result.AbsoluteEpisodeNumbers.Should().BeEmpty();
@@ -70,7 +70,7 @@ namespace NzbDrone.Core.Test.ParserTests
             var result = Parser.Parser.ParseTitle("Series.Title.S02E03.720p.HDTV.x264-GROUP", false, true);
 
             result.Should().NotBeNull();
-            result.SeasonNumber.Should().Be(2);
+            result.SeasonNumbers.Should().Equal(2);
             result.EpisodeNumbers.Single().Should().Be(3);
             result.SeriesTitle.Should().Be("Series Title");
         }
@@ -89,7 +89,7 @@ namespace NzbDrone.Core.Test.ParserTests
             var result = Parser.Parser.ParseTitle(postTitle);
             result.Should().NotBeNull();
             result.EpisodeNumbers.Should().HaveCount(1);
-            result.SeasonNumber.Should().Be(1);
+            result.SeasonNumbers.Should().Equal(1);
             result.EpisodeNumbers.First().Should().Be(episodeNumber);
             result.SeriesTitle.Should().Be(title);
             result.AbsoluteEpisodeNumbers.Should().BeEmpty();

@@ -101,7 +101,7 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
                 ParsedEpisodeInfo = new ParsedEpisodeInfo
                 {
                     SeriesTitle = "TV Series",
-                    SeasonNumber = 1,
+                    SeasonNumbers = [1],
                     EpisodeNumbers = new[] { 1, 2 }
                 },
                 MappedSeasonNumber = 1
@@ -168,7 +168,7 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
                 ParsedEpisodeInfo = new ParsedEpisodeInfo
                 {
                     SeriesTitle = "TV Series",
-                    SeasonNumber = 1,
+                    SeasonNumbers = [1],
                     EpisodeNumbers = new[] { 1 }
                 },
                 MappedSeasonNumber = 1
@@ -233,7 +233,7 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
                 ParsedEpisodeInfo = new ParsedEpisodeInfo
                 {
                     SeriesTitle = "TV Series",
-                    SeasonNumber = 1,
+                    SeasonNumbers = [1],
                     EpisodeNumbers = new[] { 1 }
                 },
                 MappedSeasonNumber = 1
@@ -306,7 +306,7 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
                 ParsedEpisodeInfo = new ParsedEpisodeInfo
                 {
                     SeriesTitle = "TV Series",
-                    SeasonNumber = 1,
+                    SeasonNumbers = [1],
                     EpisodeNumbers = new[] { 1 }
                 },
                 MappedSeasonNumber = 1

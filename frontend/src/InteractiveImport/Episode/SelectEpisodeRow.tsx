@@ -6,6 +6,7 @@ import TableRowButton from 'Components/Table/TableRowButton';
 import Episode from 'Episode/Episode';
 import { icons, kinds } from 'Helpers/Props';
 import { SelectStateInputProps } from 'typings/props';
+import padNumber from 'Utilities/Number/padNumber';
 import translate from 'Utilities/String/translate';
 import Icon from '../../Components/Icon';
 import styles from './SelectEpisodeRow.module.css';
@@ -30,6 +31,7 @@ function getWarningMessage(
 
 interface SelectEpisodeRowProps {
   id: number;
+  seasonNumber?: number;
   episodeNumber: number;
   absoluteEpisodeNumber: number | undefined;
   title: string;
@@ -43,6 +45,7 @@ interface SelectEpisodeRowProps {
 
 function SelectEpisodeRow({
   id,
+  seasonNumber,
   episodeNumber,
   absoluteEpisodeNumber,
   title,
@@ -85,7 +88,9 @@ function SelectEpisodeRow({
       />
 
       <TableRowCell>
-        {episodeNumber}
+        {seasonNumber === undefined
+          ? episodeNumber
+          : `${seasonNumber}x${padNumber(episodeNumber, 2)}`}
         {isAnime && !!absoluteEpisodeNumber
           ? ` (${absoluteEpisodeNumber})`
           : ''}

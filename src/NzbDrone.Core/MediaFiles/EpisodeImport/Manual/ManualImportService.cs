@@ -109,7 +109,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                         Series = series,
                         SeasonNumber = null,
                         Episodes = new List<Episode>(),
-                        ReleaseGroup = string.Empty,
+                        ReleaseGroup = null,
                         Quality = new QualityModel(Quality.Unknown),
                         Languages = new List<Language> { Language.Unknown },
                         Size = _diskProvider.GetFileSize(file),
@@ -167,9 +167,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                 var trackedDownload = GetTrackedDownload(downloadId);
                 var downloadClientItem = trackedDownload?.DownloadItem;
                 var episodes = _episodeService.GetEpisodes(episodeIds);
-                var finalReleaseGroup = releaseGroup.IsNullOrWhiteSpace()
-                    ? Parser.ReleaseGroupParser.ParseReleaseGroup(path)
-                    : releaseGroup;
+                var finalReleaseGroup = releaseGroup ?? Parser.ReleaseGroupParser.ParseReleaseGroup(path);
                 var initialQuality = qualityManuallySelected && quality != null && quality.Quality != Quality.Unknown
                     ? quality
                     : QualityParser.ParseQuality(path);
@@ -252,7 +250,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                     SceneSource = SceneSource(series, rootFolder),
                     ExistingFile = series.Path.IsParentPath(path),
                     Size = _diskProvider.GetFileSize(path),
-                    ReleaseGroup = releaseGroup.IsNullOrWhiteSpace() ? Parser.ReleaseGroupParser.ParseReleaseGroup(path) : releaseGroup,
+                    ReleaseGroup = releaseGroup ?? Parser.ReleaseGroupParser.ParseReleaseGroup(path),
                     Languages = initialLanguages,
                     Quality = initialQuality,
                     IndexerFlags = (IndexerFlags)indexerFlags,
@@ -1029,10 +1027,11 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                 if (allEpisodesImported)
                 {
                     var episodeFiles = importedResults.Select(i => i.EpisodeFile).ToList();
+                    var importedEpisodes = importedResults.SelectMany(i => i.ImportDecision.LocalEpisode.Episodes).ToList();
 
                     trackedDownload.State = TrackedDownloadState.Imported;
                     trackedDownload.ClearStatus();
-                    _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, importedSeries.Id, episodeFiles, importedResults.First().ImportDecision.LocalEpisode.Release));
+                    _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, importedSeries, importedEpisodes, episodeFiles, importedResults.First().ImportDecision.LocalEpisode.Release));
                 }
                 else
                 {

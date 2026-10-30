@@ -61,8 +61,9 @@ namespace NzbDrone.Core.Test.ParserTests.ParsingServiceTests
             result.TvdbId.Should().Be(100);
         }
 
-        [Test]
-        public void should_use_parsed_tvdb_id_before_scene_mapping_lookup()
+        [TestCase("Series.Title.S01E01.[tvdb:12345].mkv")]
+        [TestCase("Series.Title.S01-S03.[tvdb:12345].1080p.BluRay.x264-GROUP")]
+        public void should_use_parsed_tvdb_id_before_scene_mapping_lookup(string releaseTitle)
         {
             const int tvdbId = 12345;
             var series = new Series { TvdbId = tvdbId };
@@ -73,7 +74,7 @@ namespace NzbDrone.Core.Test.ParserTests.ParsingServiceTests
 
             Mocker.GetMock<ISeriesService>().Setup(v => v.FindByTvdbId(tvdbId)).Returns(series);
 
-            var result = Subject.GetSeries("Series.Title.S01E01.[tvdb:12345].mkv");
+            var result = Subject.GetSeries(releaseTitle);
 
             result.Should().Be(series);
 

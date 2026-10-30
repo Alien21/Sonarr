@@ -47,7 +47,7 @@ namespace NzbDrone.Core.Test.ParserTests
             var result = Parser.Parser.ParsePath(path.AsOsAgnostic());
 
             result.EpisodeNumbers.Should().HaveCount(1);
-            result.SeasonNumber.Should().Be(season);
+            result.SeasonNumbers.Should().Equal(season);
             result.EpisodeNumbers[0].Should().Be(episode);
             result.AbsoluteEpisodeNumbers.Should().BeEmpty();
             result.FullSeason.Should().BeFalse();
@@ -83,7 +83,7 @@ namespace NzbDrone.Core.Test.ParserTests
 
             result.Should().NotBeNull();
             result.SeriesTitle.Should().Be("Series Title");
-            result.SeasonNumber.Should().Be(1);
+            result.SeasonNumbers.Should().Equal(1);
             result.EpisodeNumbers.Single().Should().Be(123);
             result.AbsoluteEpisodeNumbers.Should().BeEmpty();
             result.FullSeason.Should().BeFalse();
@@ -102,7 +102,6 @@ namespace NzbDrone.Core.Test.ParserTests
             var result = Parser.Parser.ParsePath(path.AsOsAgnostic(), false, true);
 
             result.Should().NotBeNull();
-            result.SeasonNumber.Should().Be(1);
             result.EpisodeNumbers.Should().Equal(episode);
             result.SeasonNumbers.Should().Equal(1);
             result.IsMultiSeason.Should().BeFalse();
@@ -130,7 +129,7 @@ namespace NzbDrone.Core.Test.ParserTests
 
             result.SeriesTitle.Should().Be(title);
             result.EpisodeNumbers.Should().HaveCount(episodes.Length);
-            result.SeasonNumber.Should().Be(season);
+            result.SeasonNumbers.Should().Equal(season);
             result.EpisodeNumbers.Should().BeEquivalentTo(episodes);
             result.AbsoluteEpisodeNumbers.Should().BeEmpty();
             result.FullSeason.Should().BeFalse();

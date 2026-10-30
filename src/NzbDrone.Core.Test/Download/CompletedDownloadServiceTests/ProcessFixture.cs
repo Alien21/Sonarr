@@ -168,7 +168,7 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
                     Title = "Gold Land",
                     TitleWithoutYear = "Gold Land"
                 },
-                SeasonNumber = 1,
+                SeasonNumbers = [1],
                 EpisodeNumbers = new[] { 1 },
                 AbsoluteEpisodeNumbers = new int[0]
             };

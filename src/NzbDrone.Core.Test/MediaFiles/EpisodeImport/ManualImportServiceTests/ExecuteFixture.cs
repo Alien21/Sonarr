@@ -381,7 +381,7 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport.ManualImportServiceTests
             secondDownload.StatusMessages.Should().BeEmpty();
             _completedDownloads.Should().ContainSingle();
             _completedDownloads.Single().TrackedDownload.Should().BeSameAs(secondDownload);
-            _completedDownloads.Single().SeriesId.Should().Be(secondDownload.RemoteEpisode.Series.Id);
+            _completedDownloads.Single().Series.Id.Should().Be(secondDownload.RemoteEpisode.Series.Id);
             _completedDownloads.Single().EpisodeFiles.Should().ContainSingle(file => file.SeriesId == secondDownload.RemoteEpisode.Series.Id);
         }
     }

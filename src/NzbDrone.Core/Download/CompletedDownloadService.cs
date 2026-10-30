@@ -379,7 +379,8 @@ namespace NzbDrone.Core.Download
                 trackedDownload.ClearStatus();
 
                 _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload,
-                    trackedDownload.RemoteEpisode.Series.Id,
+                    trackedDownload.RemoteEpisode.Series,
+                    trackedDownload.RemoteEpisode.Episodes,
                     importResults.Where(c => c.Result == ImportResultType.Imported).Select(c => c.EpisodeFile).ToList(),
                     releaseInfo));
 
@@ -424,7 +425,7 @@ namespace NzbDrone.Core.Download
 
                 trackedDownload.State = TrackedDownloadState.Imported;
                 trackedDownload.ClearStatus();
-                _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, trackedDownload.RemoteEpisode.Series.Id, files, releaseInfo));
+                _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, trackedDownload.RemoteEpisode.Series, trackedDownload.RemoteEpisode.Episodes, files, releaseInfo));
 
                 return true;
             }
@@ -1380,7 +1381,7 @@ namespace NzbDrone.Core.Download
 
             trackedDownload.State = TrackedDownloadState.Imported;
             trackedDownload.ClearStatus();
-            _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, trackedDownload.RemoteEpisode.Series.Id, files, releaseInfo));
+            _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, trackedDownload.RemoteEpisode.Series, trackedDownload.RemoteEpisode.Episodes, files, releaseInfo));
         }
 
         private List<ImportDecision> GetExistingEpisodeAutoImportDecisions(TrackedDownload trackedDownload)

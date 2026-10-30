@@ -77,7 +77,7 @@ public abstract class EpisodeControllerWithSignalR : RestControllerWithSignalR<E
 
             if (includeEpisodeFile && episode.EpisodeFileId != 0)
             {
-                resource.EpisodeFile = episode.EpisodeFile.Value.ToResource(series, _upgradableSpecification, _formatCalculator);
+                resource.EpisodeFile = episode.EpisodeFile.Value?.ToResource(series, _upgradableSpecification, _formatCalculator);
             }
 
             if (includeImages)
@@ -111,7 +111,7 @@ public abstract class EpisodeControllerWithSignalR : RestControllerWithSignalR<E
 
                 if (includeEpisodeFile && episode.EpisodeFileId != 0)
                 {
-                    resource.EpisodeFile = episode.EpisodeFile.Value.ToResource(series, _upgradableSpecification, _formatCalculator);
+                    resource.EpisodeFile = episode.EpisodeFile.Value?.ToResource(series, _upgradableSpecification, _formatCalculator);
                 }
 
                 if (includeImages)

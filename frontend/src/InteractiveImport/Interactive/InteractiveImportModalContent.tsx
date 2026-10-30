@@ -1024,7 +1024,11 @@ function InteractiveImportModalContentInner(
         selectedIds={orderedSelectedIds}
         episodeFiles={episodeFiles}
         seriesId={selectedItem?.series?.id}
-        seasonNumber={selectedItem?.seasonNumber}
+        seasonNumbers={
+          selectedItem?.seasonNumber == null
+            ? undefined
+            : [selectedItem.seasonNumber]
+        }
         isAnime={selectedItem?.series?.seriesType === 'anime'}
         modalTitle={modalTitle}
         onEpisodesSelect={handleEpisodesSelect}

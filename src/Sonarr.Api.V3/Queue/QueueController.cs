@@ -356,6 +356,11 @@ namespace Sonarr.Api.V3.Queue
                     throw new BadRequestException();
                 }
 
+                if (!trackedDownload.DownloadItem.DownloadClientInfo.HasPostImportCategory)
+                {
+                    throw new BadRequestException($"Queue item with ID {trackedDownload.DownloadItem.DownloadId} does not support category changing.");
+                }
+
                 downloadClient.MarkItemAsImported(trackedDownload.DownloadItem);
             }
 

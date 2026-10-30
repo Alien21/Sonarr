@@ -10,24 +10,17 @@ import React, {
 } from 'react';
 import { ListChildComponentProps, VariableSizeList } from 'react-window';
 import Alert from 'Components/Alert';
-import TextInput from 'Components/Form/TextInput';
 import LoadingIndicator from 'Components/Loading/LoadingIndicator';
-import FilterMenu from 'Components/Menu/FilterMenu';
-import PageMenuButton from 'Components/Menu/PageMenuButton';
-import { useCustomFiltersList } from 'Filters/useCustomFilters';
 import useMeasure from 'Helpers/Hooks/useMeasure';
-import { align, kinds } from 'Helpers/Props';
+import { kinds } from 'Helpers/Props';
 import { SortDirection } from 'Helpers/Props/sortDirections';
-import { InputChanged } from 'typings/inputs';
 import getErrorMessage from 'Utilities/Object/getErrorMessage';
 import translate from 'Utilities/String/translate';
-import InteractiveSearchFilterModal from './InteractiveSearchFilterModal';
 import InteractiveSearchPayload from './InteractiveSearchPayload';
 import InteractiveSearchRow from './InteractiveSearchRow';
 import InteractiveSearchTableHeader from './InteractiveSearchTableHeader';
-import InteractiveSearchType from './InteractiveSearchType';
-import { setReleaseOption, useReleaseOptions } from './releaseOptionsStore';
-import useReleases, { FILTERS, Release, setReleaseSort } from './useReleases';
+import { useReleaseOptions } from './releaseOptionsStore';
+import useReleases, { Release, setReleaseSort } from './useReleases';
 import styles from './InteractiveSearch.module.css';
 
 const ESTIMATED_ROW_HEIGHT = 35;
@@ -60,20 +53,17 @@ function Row({ index, style, data }: ListChildComponentProps<RowItemData>) {
 }
 
 interface InteractiveSearchProps {
-  type: InteractiveSearchType;
   searchPayload: InteractiveSearchPayload;
   scrollerRef: RefObject<HTMLDivElement>;
+  filter: string;
 }
 
 function InteractiveSearch({
-  type,
   searchPayload,
   scrollerRef,
+  filter,
 }: InteractiveSearchProps) {
-  const customFilters = useCustomFiltersList('releases');
   const { columns } = useReleaseOptions();
-
-  const [filter, setFilter] = useState('');
 
   const {
     isFetching,
@@ -81,13 +71,14 @@ function InteractiveSearch({
     error,
     data,
     totalItems,
-    selectedFilterKey,
     sortKey,
     sortDirection,
   } = useReleases(searchPayload, { filter });
 
   const listRef = useRef<VariableSizeList<RowItemData>>(null);
   const listOuterRef = useRef<HTMLDivElement>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const scrollbarRef = useRef<HTMLDivElement>(null);
   const rowHeights = useRef<number[]>([]);
   const [measureRef, bounds] = useMeasure();
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -160,20 +151,23 @@ function InteractiveSearch({
     [data, searchPayload, setRowHeight]
   );
 
-  const onFilterChange = useCallback(({ value }: InputChanged<string>) => {
-    setFilter(value);
+  const handleTableScroll = useCallback(() => {
+    const tableContainer = tableContainerRef.current;
+    const scrollbar = scrollbarRef.current;
+
+    if (tableContainer && scrollbar) {
+      scrollbar.scrollLeft = tableContainer.scrollLeft;
+    }
   }, []);
 
-  const handleFilterSelect = useCallback(
-    (selectedFilterKey: string | number) => {
-      if (type === 'episode') {
-        setReleaseOption('episodeSelectedFilterKey', selectedFilterKey);
-      } else {
-        setReleaseOption('seasonSelectedFilterKey', selectedFilterKey);
-      }
-    },
-    [type]
-  );
+  const handleScrollbarScroll = useCallback(() => {
+    const tableContainer = tableContainerRef.current;
+    const scrollbar = scrollbarRef.current;
+
+    if (tableContainer && scrollbar) {
+      tableContainer.scrollLeft = scrollbar.scrollLeft;
+    }
+  }, []);
 
   const handleSortPress = useCallback(
     (sortKey: string, sortDirection?: SortDirection) => {
@@ -186,28 +180,6 @@ function InteractiveSearch({
 
   return (
     <div>
-      <div className={styles.filterRow}>
-        <div className={styles.filterInput}>
-          <TextInput
-            name="releaseFilter"
-            value={filter}
-            placeholder={translate('FilterReleasesPlaceholder')}
-            onChange={onFilterChange}
-          />
-        </div>
-
-        <FilterMenu
-          alignMenu={align.RIGHT}
-          selectedFilterKey={selectedFilterKey}
-          filters={FILTERS}
-          customFilters={customFilters}
-          buttonComponent={PageMenuButton}
-          filterModalConnectorComponent={InteractiveSearchFilterModal}
-          filterModalConnectorComponentProps={{ type, searchPayload }}
-          onFilterSelect={handleFilterSelect}
-        />
-      </div>
-
       {isFetching ? <LoadingIndicator /> : null}
 
       {!isFetching && error ? (
@@ -236,7 +208,11 @@ function InteractiveSearch({
       ) : null}
 
       {!isFetching && !!data.length ? (
-        <div className={styles.tableContainer}>
+        <div
+          ref={tableContainerRef}
+          className={styles.tableContainer}
+          onScroll={handleTableScroll}
+        >
           <div ref={measureRef} className={styles.table}>
             <InteractiveSearchTableHeader
               columns={columns}
@@ -260,6 +236,19 @@ function InteractiveSearch({
               {Row}
             </VariableSizeList>
           </div>
+        </div>
+      ) : null}
+
+      {!isFetching && !!data.length ? (
+        <div
+          ref={scrollbarRef}
+          className={styles.scrollbar}
+          onScroll={handleScrollbarScroll}
+        >
+          <div
+            className={styles.scrollbarContent}
+            style={{ width: bounds.width }}
+          />
         </div>
       ) : null}
 

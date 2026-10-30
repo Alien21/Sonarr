@@ -67,7 +67,7 @@ interface SelectEpisodeModalContentProps {
   selectedIds: number[] | string[];
   episodeFiles?: EpisodeSelectFileContext[];
   seriesId?: number;
-  seasonNumber?: number;
+  seasonNumbers?: number[];
   selectedDetails?: string;
   isAnime: boolean;
   modalTitle: string;
@@ -75,12 +75,33 @@ interface SelectEpisodeModalContentProps {
   onModalClose(): unknown;
 }
 
+function useSelectableEpisodes(
+  seriesId: number | undefined,
+  seasonNumbers: number[] = []
+) {
+  const isMultiSeason = seasonNumbers.length > 1;
+
+  const result = useEpisodes({
+    seriesId,
+    seasonNumber: isMultiSeason ? undefined : seasonNumbers[0],
+    isSelection: true,
+  });
+
+  const data = useMemo(() => {
+    return isMultiSeason
+      ? result.data.filter((e) => seasonNumbers.includes(e.seasonNumber))
+      : result.data;
+  }, [result.data, isMultiSeason, seasonNumbers]);
+
+  return { ...result, data };
+}
+
 function SelectEpisodeModalContentInner(props: SelectEpisodeModalContentProps) {
   const {
     selectedIds,
     episodeFiles = [],
     seriesId,
-    seasonNumber,
+    seasonNumbers,
     selectedDetails,
     isAnime,
     modalTitle,
@@ -90,11 +111,11 @@ function SelectEpisodeModalContentInner(props: SelectEpisodeModalContentProps) {
 
   const [filter, setFilter] = useState('');
 
-  const { isFetching, isFetched, data, error } = useEpisodes({
+  const { isFetching, isFetched, data, error } = useSelectableEpisodes(
     seriesId,
-    seasonNumber,
-    isSelection: true,
-  });
+    seasonNumbers
+  );
+  const isMultiSeason = (seasonNumbers?.length ?? 0) > 1;
 
   const { data: existingFiles } = useEpisodeFiles({
     episodeFileIds: data
@@ -197,12 +218,16 @@ function SelectEpisodeModalContentInner(props: SelectEpisodeModalContentProps) {
         : translate('CountSelectedFile', { selectedCount });
   }
 
-  const { data: items } = useMemo(() => {
-    return clientSideFilterAndSort<Episode>(data, {
+  const items = useMemo(() => {
+    const { data: sorted } = clientSideFilterAndSort<Episode>(data, {
       sortKey,
       sortDirection,
     });
-  }, [data, sortKey, sortDirection]);
+
+    return isMultiSeason
+      ? [...sorted].sort((a, b) => a.seasonNumber - b.seasonNumber)
+      : sorted;
+  }, [data, sortKey, sortDirection, isMultiSeason]);
 
   return (
     <ModalContent onModalClose={onModalClose}>
@@ -246,6 +271,9 @@ function SelectEpisodeModalContentInner(props: SelectEpisodeModalContentProps) {
                     <SelectEpisodeRow
                       key={item.id}
                       id={item.id}
+                      seasonNumber={
+                        isMultiSeason ? item.seasonNumber : undefined
+                      }
                       episodeNumber={item.episodeNumber}
                       absoluteEpisodeNumber={item.absoluteEpisodeNumber}
                       title={item.title}
@@ -291,11 +319,7 @@ function SelectEpisodeModalContentInner(props: SelectEpisodeModalContentProps) {
 }
 
 function SelectEpisodeModalContent(props: SelectEpisodeModalContentProps) {
-  const { data } = useEpisodes({
-    seriesId: props.seriesId,
-    seasonNumber: props.seasonNumber,
-    isSelection: true,
-  });
+  const { data } = useSelectableEpisodes(props.seriesId, props.seasonNumbers);
 
   return (
     <SelectProvider items={data}>
