@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
@@ -113,6 +115,85 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             Mocker.GetMock<IParsingService>()
                   .Setup(s => s.GetSeries(It.IsAny<string>()))
                   .Returns(_trackedDownload.RemoteEpisode.Series);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_retry_import_after_processing_or_verification_throws(bool failureDuringVerification)
+        {
+            var failure = new IOException("No space left on device");
+            var importResults = new List<ImportResult>
+            {
+                new ImportResult(new ImportDecision(new LocalEpisode
+                {
+                    Path = @"C:\TestPath\Droned.S01E01.mkv",
+                    Episodes = new List<Episode> { _episode1 }
+                }))
+            };
+
+            if (failureDuringVerification)
+            {
+                Mocker.GetMock<IDownloadedEpisodesImportService>()
+                      .Setup(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Series>(), It.IsAny<DownloadClientItem>()))
+                      .Returns(importResults);
+
+                Mocker.GetMock<IHistoryService>()
+                      .SetupSequence(v => v.FindByDownloadId(It.IsAny<string>()))
+                      .Throws(failure)
+                      .Returns(new List<EpisodeHistory>());
+            }
+            else
+            {
+                Mocker.GetMock<IDownloadedEpisodesImportService>()
+                      .SetupSequence(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Series>(), It.IsAny<DownloadClientItem>()))
+                      .Throws(failure)
+                      .Returns(importResults);
+            }
+
+            Assert.Throws<IOException>(() => Subject.Import(_trackedDownload)).Should().BeSameAs(failure);
+
+            _trackedDownload.State.Should().Be(TrackedDownloadState.ImportPending);
+            _trackedDownload.Status.Should().Be(TrackedDownloadStatus.Warning);
+            _trackedDownload.StatusMessages.SelectMany(v => v.Messages)
+                            .Should().Equal("Import failed and will be retried: No space left on device");
+
+            Mocker.GetMock<IEventAggregator>()
+                  .Verify(v => v.PublishEvent(It.IsAny<DownloadCompletedEvent>()), Times.Never());
+
+            Subject.Import(_trackedDownload);
+
+            _trackedDownload.State.Should().Be(TrackedDownloadState.Imported);
+            _trackedDownload.Status.Should().Be(TrackedDownloadStatus.Ok);
+            _trackedDownload.StatusMessages.Should().BeEmpty();
+
+            Mocker.GetMock<IDownloadedEpisodesImportService>()
+                  .Verify(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Series>(), It.IsAny<DownloadClientItem>()), Times.Exactly(2));
+
+            Mocker.GetMock<IEventAggregator>()
+                  .Verify(v => v.PublishEvent(It.IsAny<DownloadCompletedEvent>()), Times.Once());
+        }
+
+        [Test]
+        public void should_preserve_imported_state_when_completion_notification_throws()
+        {
+            Mocker.GetMock<IDownloadedEpisodesImportService>()
+                  .Setup(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Series>(), It.IsAny<DownloadClientItem>()))
+                  .Returns(new List<ImportResult>
+                  {
+                      new ImportResult(new ImportDecision(new LocalEpisode
+                      {
+                          Path = @"C:\TestPath\Droned.S01E01.mkv",
+                          Episodes = new List<Episode> { _episode1 }
+                      }))
+                  });
+
+            Mocker.GetMock<IEventAggregator>()
+                  .Setup(v => v.PublishEvent(It.IsAny<DownloadCompletedEvent>()))
+                  .Throws(new InvalidOperationException("Notification failed"));
+
+            Assert.Throws<InvalidOperationException>(() => Subject.Import(_trackedDownload));
+
+            _trackedDownload.State.Should().Be(TrackedDownloadState.Imported);
         }
 
         [Test]

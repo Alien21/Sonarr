@@ -271,17 +271,32 @@ namespace NzbDrone.Core.Download
                 return;
             }
 
+            var outputPath = trackedDownload.ImportItem.OutputPath.FullPath;
             trackedDownload.State = TrackedDownloadState.Importing;
 
-            var outputPath = trackedDownload.ImportItem.OutputPath.FullPath;
-            var importResults = _downloadedEpisodesImportService.ProcessPath(outputPath,
-                ImportMode.Auto,
-                trackedDownload.RemoteEpisode.Series,
-                trackedDownload.ImportItem);
+            List<ImportResult> importResults;
 
-            if (VerifyImport(trackedDownload, importResults))
+            try
             {
-                return;
+                importResults = _downloadedEpisodesImportService.ProcessPath(outputPath,
+                    ImportMode.Auto,
+                    trackedDownload.RemoteEpisode.Series,
+                    trackedDownload.ImportItem);
+
+                if (VerifyImport(trackedDownload, importResults))
+                {
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                if (trackedDownload.State == TrackedDownloadState.Importing)
+                {
+                    trackedDownload.State = TrackedDownloadState.ImportPending;
+                    trackedDownload.Warn("Import failed and will be retried: {0}", ex.Message);
+                }
+
+                throw;
             }
 
             trackedDownload.State = TrackedDownloadState.ImportPending;
@@ -361,6 +376,7 @@ namespace NzbDrone.Core.Download
             {
                 _logger.Debug("All episodes were imported for {0}", trackedDownload.DownloadItem.Title);
                 trackedDownload.State = TrackedDownloadState.Imported;
+                trackedDownload.ClearStatus();
 
                 _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload,
                     trackedDownload.RemoteEpisode.Series.Id,
@@ -407,6 +423,7 @@ namespace NzbDrone.Core.Download
                 var files = _mediaFileService.GetFiles(episodes.Select(e => e.EpisodeFileId).Where(i => i > 0).Distinct());
 
                 trackedDownload.State = TrackedDownloadState.Imported;
+                trackedDownload.ClearStatus();
                 _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, trackedDownload.RemoteEpisode.Series.Id, files, releaseInfo));
 
                 return true;
@@ -1362,6 +1379,7 @@ namespace NzbDrone.Core.Download
             var files = _mediaFileService.GetFiles(episodes.Select(e => e.EpisodeFileId).Where(i => i > 0).Distinct());
 
             trackedDownload.State = TrackedDownloadState.Imported;
+            trackedDownload.ClearStatus();
             _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, trackedDownload.RemoteEpisode.Series.Id, files, releaseInfo));
         }
 

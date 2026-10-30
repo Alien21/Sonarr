@@ -854,6 +854,33 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
 
         public void Execute(ManualImportCommand message)
         {
+            var attemptedDownloads = new HashSet<TrackedDownload>();
+
+            try
+            {
+                ExecuteImport(message, attemptedDownloads);
+            }
+            catch (Exception ex)
+            {
+                foreach (var trackedDownload in attemptedDownloads.Where(d => d.State == TrackedDownloadState.Importing))
+                {
+                    trackedDownload.State = TrackedDownloadState.ImportBlocked;
+                    trackedDownload.Warn("Manual import failed: {0}", ex.Message);
+                }
+
+                throw;
+            }
+            finally
+            {
+                if (attemptedDownloads.Any())
+                {
+                    _eventAggregator.PublishEvent(new TrackedDownloadRefreshedEvent(_trackedDownloadService.GetTrackedDownloads()));
+                }
+            }
+        }
+
+        private void ExecuteImport(ManualImportCommand message, ISet<TrackedDownload> attemptedDownloads)
+        {
             _logger.ProgressTrace("Manually importing {0} files using mode {1}", message.Files.Count, message.ImportMode);
 
             var imported = new List<ImportResult>();
@@ -937,6 +964,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                 }
                 else
                 {
+                    attemptedDownloads.Add(trackedDownload);
                     UpdateTrackedDownloadForManualImport(trackedDownload, localEpisode, manuallyMatchedEpisodes);
 
                     var importResult = _importApprovedEpisodes.Import(new List<ImportDecision> { importDecision }, true, trackedDownload.DownloadItem, message.ImportMode).First();
@@ -953,7 +981,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
 
             if (imported.Any())
             {
-                _logger.ProgressTrace("Manually imported {0} files", imported.Count);
+                _logger.ProgressTrace("Manually imported {0} files", imported.Count(i => i.Result == ImportResultType.Imported));
             }
 
             var untrackedImports = importedUntrackedDownload.Where(i => i.Result == ImportResultType.Imported).ToList();
@@ -977,7 +1005,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
             foreach (var groupedTrackedDownload in importedTrackedDownload.GroupBy(i => i.TrackedDownload.DownloadItem.DownloadId).ToList())
             {
                 var trackedDownload = groupedTrackedDownload.First().TrackedDownload;
-                var importedSeries = imported.First().ImportDecision.LocalEpisode.Series;
+                var importedSeries = groupedTrackedDownload.First().ImportResult.ImportDecision.LocalEpisode.Series;
                 var outputPath = trackedDownload.ImportItem.OutputPath.FullPath;
 
                 if (_diskProvider.FolderExists(outputPath))
@@ -1003,7 +1031,25 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                     var episodeFiles = importedResults.Select(i => i.EpisodeFile).ToList();
 
                     trackedDownload.State = TrackedDownloadState.Imported;
+                    trackedDownload.ClearStatus();
                     _eventAggregator.PublishEvent(new DownloadCompletedEvent(trackedDownload, importedSeries.Id, episodeFiles, importedResults.First().ImportDecision.LocalEpisode.Release));
+                }
+                else
+                {
+                    var statusMessages = groupedTrackedDownload
+                        .Select(i => i.ImportResult)
+                        .Where(i => i.Result != ImportResultType.Imported)
+                        .Select(i => new TrackedDownloadStatusMessage(Path.GetFileName(i.ImportDecision.LocalEpisode.Path), i.Errors))
+                        .ToList();
+
+                    if (statusMessages.Empty())
+                    {
+                        statusMessages.Add(new TrackedDownloadStatusMessage(trackedDownload.DownloadItem.Title,
+                            "One or more episodes expected in this release were not imported or missing from the release"));
+                    }
+
+                    trackedDownload.State = TrackedDownloadState.ImportBlocked;
+                    trackedDownload.Warn(statusMessages.ToArray());
                 }
             }
         }
