@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using NLog;
@@ -136,7 +137,7 @@ namespace NzbDrone.Core.Tv
             var query =
                 list.SelectMany(series => GetSeriesCleanTitles(series).Select(cleanTitleMatch => new
                 {
-                    position = cleanTitle.IndexOf(cleanTitleMatch),
+                    position = cleanTitle.IndexOf(cleanTitleMatch, StringComparison.Ordinal),
                     length = cleanTitleMatch.Length,
                     series = series
                 }))
@@ -164,6 +165,11 @@ namespace NzbDrone.Core.Tv
             if (series.CleanTitle.IsNotNullOrWhiteSpace())
             {
                 yield return series.CleanTitle;
+            }
+
+            if (series.CleanOriginalTitle.IsNotNullOrWhiteSpace())
+            {
+                yield return series.CleanOriginalTitle;
             }
 
             foreach (var translation in series.Translations ?? Enumerable.Empty<SeriesTranslation>())

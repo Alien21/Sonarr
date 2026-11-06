@@ -27,6 +27,7 @@ import { icons } from 'Helpers/Props';
 import Series from 'Series/Series';
 import useSeries from 'Series/useSeries';
 import { Tag, useTagList } from 'Tags/useTags';
+import getSeriesPath from 'Utilities/Series/getSeriesPath';
 import translate from 'Utilities/String/translate';
 import SeriesSearchResult from './SeriesSearchResult';
 import styles from './SeriesSearchInput.module.css';
@@ -46,6 +47,7 @@ interface AddNewSeriesSuggestion {
 export interface SuggestedSeries
   extends Pick<
     Series,
+    | 'id'
     | 'title'
     | 'defaultTitle'
     | 'titleSlug'
@@ -86,6 +88,7 @@ function useSeriesSuggestions(tagList: ReadonlyArray<Tag>) {
   return useMemo(() => {
     return allSeries.map((series): SuggestedSeries => {
       const {
+        id,
         title,
         defaultTitle,
         titleSlug,
@@ -101,6 +104,7 @@ function useSeriesSuggestions(tagList: ReadonlyArray<Tag>) {
       } = series;
 
       return {
+        id,
         title,
         defaultTitle,
         titleSlug,
@@ -292,7 +296,7 @@ function SeriesSearchInput() {
       const selectedSuggestion =
         activeIndex == null ? suggestions[0] : suggestions[activeIndex];
 
-      navigate(`/series/${selectedSuggestion.item.titleSlug}`);
+      navigate(getSeriesPath(selectedSuggestion.item));
 
       inputRef.current?.blur();
       reset();
@@ -446,7 +450,7 @@ function SeriesSearchInput() {
 
                         return (
                           <Link
-                            key={isAddNew ? ADD_NEW_TYPE : item.item.titleSlug}
+                            key={isAddNew ? ADD_NEW_TYPE : item.item.id}
                             {...getItemProps({
                               ref: (node: HTMLAnchorElement | null) => {
                                 listRef.current[index] = node;
@@ -460,9 +464,7 @@ function SeriesSearchInput() {
                               isAddNew && styles.addNewSeriesSuggestion
                             )}
                             to={
-                              isAddNew
-                                ? addNewPath
-                                : `/series/${item.item.titleSlug}`
+                              isAddNew ? addNewPath : getSeriesPath(item.item)
                             }
                             tabIndex={-1}
                             onClick={handleSuggestionClick}

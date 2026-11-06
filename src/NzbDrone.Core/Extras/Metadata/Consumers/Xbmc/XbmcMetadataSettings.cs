@@ -32,16 +32,16 @@ namespace NzbDrone.Core.Extras.Metadata.Consumers.Xbmc
         [FieldDefinition(1, Label = "MetadataSettingsSeriesMetadataLanguage", Type = FieldType.Select, SelectOptions = typeof(RealLanguageFieldConverter), Section = MetadataSectionType.Metadata, HelpText = "MetadataXmbcSettingsSeriesMetadataLanguageHelpText")]
         public int SeriesMetadataLanguage { get; set; }
 
-        [FieldDefinition(2, Label = "MetadataSettingsSeriesMetadataEpisodeGuide", Type = FieldType.Checkbox, Section = MetadataSectionType.Metadata, HelpText = "MetadataXmbcSettingsSeriesMetadataEpisodeGuideHelpText", Advanced = true)]
+        [FieldDefinition(2, Label = "MetadataSettingsSeriesMetadataEpisodeGuide", Type = FieldType.Checkbox, Section = MetadataSectionType.Metadata, HelpText = "MetadataXmbcSettingsSeriesMetadataEpisodeGuideHelpText")]
         public bool SeriesMetadataEpisodeGuide { get; set; }
 
-        [FieldDefinition(3, Label = "MetadataSettingsSeriesMetadataUrl", Type = FieldType.Checkbox, Section = MetadataSectionType.Metadata, HelpText = "MetadataXmbcSettingsSeriesMetadataUrlHelpText", Advanced = true)]
+        [FieldDefinition(3, Label = "MetadataSettingsSeriesMetadataUrl", Type = FieldType.Checkbox, Section = MetadataSectionType.Metadata, HelpText = "MetadataXmbcSettingsSeriesMetadataUrlHelpText")]
         public bool SeriesMetadataUrl { get; set; }
 
         [FieldDefinition(4, Label = "MetadataSettingsEpisodeMetadata", Type = FieldType.Checkbox, Section = MetadataSectionType.Metadata, HelpText = "<filename>.nfo")]
         public bool EpisodeMetadata { get; set; }
 
-        [FieldDefinition(5, Label = "MetadataSettingsEpisodeMetadataImageThumbs", Type = FieldType.Checkbox, Section = MetadataSectionType.Image, HelpText = "MetadataXmbcSettingsEpisodeMetadataImageThumbsHelpText", Advanced = true)]
+        [FieldDefinition(5, Label = "MetadataSettingsEpisodeMetadataImageThumbs", Type = FieldType.Checkbox, Section = MetadataSectionType.Image, HelpText = "MetadataXmbcSettingsEpisodeMetadataImageThumbsHelpText")]
         public bool EpisodeImageThumb { get; set; }
 
         [FieldDefinition(6, Label = "MetadataSettingsSeriesImages", Type = FieldType.Checkbox, Section = MetadataSectionType.Image, HelpText = "fanart.jpg, poster.jpg, banner.jpg")]
